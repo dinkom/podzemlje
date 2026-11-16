@@ -69,9 +69,9 @@ const Level = (() => {
       { type: 'exit', id: 'E', ...at(161, 20) },
     ];
     const monsters = [
-      { id: 'M1', ...at(72, 20), minX: 31 * TILE, maxX: 84 * TILE },
-      { id: 'M2', ...at(61, 31), minX: 60 * TILE + 10, maxX: 119 * TILE, dormant: true },
-      { id: 'M3', ...at(150, 20), minX: 127 * TILE, maxX: 159 * TILE },
+      { id: 'M1', ...at(72, 20), minX: 31 * TILE, maxX: 84 * TILE, cMin: 29 * TILE + 8, cMax: 86 * TILE - 6 },
+      { id: 'M2', ...at(61, 31), minX: 60 * TILE + 10, maxX: 119 * TILE, cMin: 60 * TILE + 8, cMax: 121 * TILE - 8, dormant: true },
+      { id: 'M3', ...at(150, 20), minX: 127 * TILE, maxX: 159 * TILE, cMin: 126 * TILE + 8, cMax: 163 * TILE - 8 },
     ];
     const door = { tx: 124, ty: 17, w: 2, h: 4, x: 124 * TILE, y: 17 * TILE };
     const start = at(4, 20);

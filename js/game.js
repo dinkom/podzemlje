@@ -342,12 +342,15 @@ class GameScene extends Phaser.Scene {
       if (b.blocked.left) m.dir = 1;
       if (b.blocked.right) m.dir = -1;
     } else if (m.state === 'chase') {
-      const tx = Phaser.Math.Clamp(m.lastX, m.minX, m.maxX);
+      const tx = Phaser.Math.Clamp(m.lastX, m.cMin, m.cMax);
       m.dir = tx > s.x ? 1 : -1;
       speed = Math.abs(tx - s.x) < 6 ? 0 : 100;
     }
     // ne izlazi iz svog područja
-    if ((s.x <= m.minX && m.dir < 0) || (s.x >= m.maxX && m.dir > 0)) speed = 0;
+    const lo = m.state === 'chase' ? m.cMin : m.minX, hi = m.state === 'chase' ? m.cMax : m.maxX;
+    if ((s.x <= lo && m.dir < 0) || (s.x >= hi && m.dir > 0)) speed = 0;
+    // ne pada u rupe
+    if (speed > 0 && b.blocked.down && !this.solidAt(s.x + m.dir * 12, this.feet(s) + 3)) speed = 0;
     b.setVelocityX(m.dir * speed);
     s.setFlipX(m.dir < 0);
     const anim = speed === 0 ? 'tihi-idle' : m.state === 'chase' ? 'tihi-chase' : 'tihi-walk';
@@ -368,7 +371,7 @@ class GameScene extends Phaser.Scene {
     }
 
     // ulovio te
-    if (visible && this.overlap(s, p, 3)) this.die('monster');
+    if (visible && (this.overlap(s, p, 3) || (m.state === 'chase' && same && adx < 30))) this.die('monster');
   }
 
   updateCrawler(c, dt) {
