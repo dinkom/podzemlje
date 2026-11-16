@@ -30,6 +30,7 @@ function goFullscreen(scene) {
 class TitleScene extends Phaser.Scene {
   constructor() { super('Title'); }
   create() {
+    if (window.__checkUpdate) window.__checkUpdate();
     this.cameras.main.setBackgroundColor('#05070b');
     this.build();
     this.scale.on('resize', this.build, this);
@@ -141,6 +142,21 @@ window.addEventListener('resize', () => {
   resizeT = setTimeout(() => game.scale.setGameSize(Math.round(window.innerWidth * DPR), Math.round(window.innerHeight * DPR)), 150);
 });
 
+// Ažuriranje: nova verzija se provjeri pri svakom pokretanju i kad se app vrati u prvi plan.
+// Kad stigne, igra se sama osvježi — ali samo na naslovnom ekranu, nikad usred igranja.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  let updatePending = false;
+  const hadController = !!navigator.serviceWorker.controller;
+  const applyUpdate = () => {
+    if (game.scene.isActive('Title')) location.reload();
+    else updatePending = true;
+  };
+  window.__checkUpdate = () => { if (updatePending) location.reload(); };
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) applyUpdate(); });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(reg => {
+      reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    }).catch(() => {});
+  });
 }
