@@ -31,40 +31,53 @@ function goFullscreen(scene) {
   } catch (e) {}
 }
 
+// Naslovni ekran = glavni izbornik
 class TitleScene extends Phaser.Scene {
   constructor() { super('Title'); }
   create() {
     if (window.__checkUpdate) window.__checkUpdate();
     this.cameras.main.setBackgroundColor('#05070b');
+    this.mode = 'main'; this.sel = 0; this.starting = false;
+    // zaštita: klik/tipka koja nas je dovela ovamo (npr. iz pauze) ne smije odmah nešto pokrenuti
+    this.armed = false; this.ready = false;
+    this.time.delayedCall(350, () => { this.ready = true; });
     this.build();
     this.scale.on('resize', this.build, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.build, this));
-    this.sel = 0; this.starting = false;
-    const start = (act) => {
-      if (this.starting) return; this.starting = true;
-      SFX.init(); SFX.click();
-      if (act === 'new') Save.clear();
-      this.cameras.main.fadeOut(500, 0, 0, 0);
-      this.time.delayedCall(520, () => {
-        this.scene.launch('UI');
-        this.scene.start('Game');
-        this.scene.bringToTop('UI');
-      });
-    };
+    this.input.on('pointerdown', () => { if (this.ready) this.armed = true; });
     this.input.on('pointerup', (p) => {
+      if (!this.armed) return;
+      this.armed = false;
       SFX.init();
       if (p.wasTouch) goFullscreen(this);
       const hit = (this.buttons || []).find(b => b.r.getBounds().contains(p.x, p.y));
-      if (hit) start(hit.act);
+      if (hit) this.choose(hit.act);
     });
     this.input.keyboard.on('keydown', (e) => {
+      if (!this.ready) return;
       SFX.init();
       const n = this.buttons.length;
       if (e.code === 'ArrowUp' || e.code === 'KeyW') this.sel = (this.sel + n - 1) % n;
       else if (e.code === 'ArrowDown' || e.code === 'KeyS') this.sel = (this.sel + 1) % n;
-      else if (e.code === 'Enter' || e.code === 'Space') { start(this.buttons[this.sel].act); return; }
+      else if (e.code === 'Enter' || e.code === 'Space') { this.choose(this.buttons[this.sel].act); return; }
+      else if (e.code === 'Escape' && this.mode === 'confirm') { this.choose('back'); return; }
       else return;
       SFX.click(); this.paintSel();
+    });
+  }
+
+  choose(act) {
+    if (this.starting) return;
+    SFX.init(); SFX.click();
+    if (act === 'askNew') { this.mode = 'confirm'; this.sel = 1; this.build(); return; }
+    if (act === 'back') { this.mode = 'main'; this.sel = 0; this.build(); return; }
+    this.starting = true;
+    if (act === 'new') Save.clear();
+    this.cameras.main.fadeOut(500, 0, 0, 0);
+    this.time.delayedCall(520, () => {
+      this.scene.launch('UI');
+      this.scene.start('Game');
+      this.scene.bringToTop('UI');
     });
   }
 
@@ -75,6 +88,7 @@ class TitleScene extends Phaser.Scene {
   build() {
     if (this.root) this.root.destroy(true);
     const w = this.scale.width, h = this.scale.height, u = h / 360;
+    this.u = u;
     const c = this.root = this.add.container(0, 0);
     const bg = this.add.tileSprite(0, 0, w, h, 'bgFar_spilje').setOrigin(0).setTileScale(h / 560).setAlpha(0.55);
     c.add(bg);
@@ -82,7 +96,6 @@ class TitleScene extends Phaser.Scene {
     const vignette = this.add.graphics();
     vignette.fillStyle(0x000000, 0.55); vignette.fillRect(0, 0, w, h);
     c.add(vignette);
-    // junak drži svjetiljku, Tihi viri iz mraka
     const hero = this.add.image(w * 0.24, h * 0.78, 'hero', 'idle0').setScale(u * 2.4 / RES);
     const tihi = this.add.image(w * 0.8, h * 0.74, 'tihi', 'idle1').setScale(u * 2.0 / RES).setFlipX(true).setAlpha(0.18).setTint(0x8888aa);
     const eyes = this.add.image(tihi.x - 9 * u * 2.0, tihi.y - 30 * u * 2.0, 'oci_tihi').setScale(u * 2.0 / RES).setFlipX(true).setBlendMode(Phaser.BlendModes.ADD);
@@ -91,20 +104,26 @@ class TitleScene extends Phaser.Scene {
     const title = this.add.text(w / 2, h * 0.26, 'PODZEMLJE', { fontFamily: FONT, fontSize: Math.round(54 * u) + 'px', color: '#e9dfc6', letterSpacing: 10 * u, stroke: '#000', strokeThickness: 6 * u }).setOrigin(0.5);
     const sv = Save.load() || {};
     const zi = Math.min(sv.level || 0, Level.count - 1);
-    const subTxt = sv.done ? 'sve zone prijeđene' : (sv.cp || zi > 0) ? `zona ${zi + 1} · ${THEMES[Level.build(zi).theme].name}` : 'četiri zone tame';
-    const sub = this.add.text(w / 2, h * 0.26 + 44 * u, subTxt, { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(15 * u) + 'px', color: '#9fb3c8' }).setOrigin(0.5);
+    const has = !sv.done && !!(sv.cp || (sv.level || 0) > 0);
+    let subTxt = sv.done ? 'sve zone prijeđene' : has ? `zona ${zi + 1} · ${THEMES[Level.build(zi).theme].name}` : 'četiri zone tame';
+    let opts;
+    if (this.mode === 'confirm') {
+      subTxt = 'Nova igra briše spremljeni napredak. Sigurno?';
+      opts = [['Da, kreni ispočetka', 'new'], ['Ne, natrag', 'back']];
+    } else {
+      opts = has ? [['Nastavi', 'continue'], ['Nova igra', 'askNew']] : [['Igraj', 'new']];
+    }
+    const sub = this.add.text(w / 2, h * 0.26 + 44 * u, subTxt, { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(15 * u) + 'px', color: this.mode === 'confirm' ? '#f0c08a' : '#9fb3c8' }).setOrigin(0.5);
     c.add([title, sub]);
     this.buttons = [];
-    const has = !sv.done && !!(sv.cp || (sv.level || 0) > 0);
-    const opts = has ? [['Nastavi', 'continue'], ['Nova igra', 'new']] : [['Igraj', 'new']];
     opts.forEach(([label, act], i) => {
       const y = h * 0.56 + i * 56 * u;
-      const r = this.add.rectangle(w / 2, y, 240 * u, 44 * u, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, 0.55);
-      const t = this.add.text(w / 2, y, label, { fontFamily: FONT, fontSize: Math.round(20 * u) + 'px', color: '#e9dfc6' }).setOrigin(0.5);
+      const r = this.add.rectangle(w / 2, y, 260 * u, 44 * u, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, 0.55);
+      const t = this.add.text(w / 2, y, label, { fontFamily: FONT, fontSize: Math.round(19 * u) + 'px', color: '#e9dfc6' }).setOrigin(0.5);
       c.add([r, t]);
       this.buttons.push({ r, act });
     });
-    this.u = u; this.sel = Math.min(this.sel || 0, this.buttons.length - 1); this.paintSel();
+    this.sel = Math.min(this.sel || 0, this.buttons.length - 1); this.paintSel();
     const hint = this.add.text(w / 2, h - 18 * u, 'Najbolje sa slušalicama.  ·  Na računalu: W / S + Enter', { fontFamily: FONT, fontSize: Math.round(11 * u) + 'px', color: '#6f7d8c' }).setOrigin(0.5);
     c.add(hint);
   }

@@ -307,6 +307,11 @@ class UIScene extends Phaser.Scene {
         ov.c.add([r, t]);
         ov.buttons.push({ r, act });
       });
+      if (!this.touchMode) {
+        const keys = 'A / D — hodanje        S (drži) — šuljanje        W / I / razmak — skok\nJ — udarac        K — svjetiljka        L — radnja (sakrij se, pročitaj, otključaj)        Esc — pauza';
+        const kt = this.add.text(w / 2, h * 0.88, keys, { fontFamily: FONT, fontSize: Math.round(12 * u) + 'px', color: '#9fb3c8', align: 'center', lineSpacing: 8 * u }).setOrigin(0.5);
+        ov.c.add(kt);
+      }
       if (ov.paint) ov.paint();
     });
     ov.kind = 'pause'; ov.sel = 0;
