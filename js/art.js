@@ -344,6 +344,27 @@ const Art = (() => {
     ], drawBat);
   }
 
+  // ---------------- PAUK ----------------
+  function drawSpider(c, p) {
+    const k = p.k;
+    for (let i = 0; i < 4; i++) {
+      const y = 9 + i * 1.6, sw = (i % 2 ? k : -k);
+      limb(c, [[10, y], [4 - i * 0.5, y - 3 + sw], [1.5 - i * 0.3, y + 4 + sw]], '#2b2030', 0.9);
+      limb(c, [[14, y], [20 + i * 0.5, y - 3 - sw], [22.5 + i * 0.3, y + 4 - sw]], '#2b2030', 0.9);
+    }
+    const g = c.createRadialGradient(11, 12, 1, 12, 13, 7);
+    g.addColorStop(0, '#6a4a7a'); g.addColorStop(1, '#2a1b33');
+    ell(c, 12, 13.5, 5.6, 6, g, OUT, 1);
+    c.fillStyle = '#c9364a'; c.beginPath(); c.moveTo(12, 11); c.lineTo(13.6, 14); c.lineTo(12, 17); c.lineTo(10.4, 14); c.closePath(); c.fill();
+    ell(c, 12, 7.2, 3.6, 3, '#3a2846', OUT, 0.9);
+    [[10.4, 6.6, 0.8], [13.6, 6.6, 0.8], [11.3, 5.4, 0.55], [12.7, 5.4, 0.55]].forEach(([x, y, r]) => ell(c, x, y, r, r, '#ff4a4a', null));
+    c.strokeStyle = '#e6d6aa'; c.lineWidth = 0.7;
+    c.beginPath(); c.moveTo(11, 9.6); c.lineTo(10.6, 11); c.moveTo(13, 9.6); c.lineTo(13.4, 11); c.stroke();
+  }
+  function spiderFrames(scene) {
+    sheet(scene, 'pauk', 24, 20, [{ name: 'p0', k: 0.8 }, { name: 'p1', k: -0.8 }], drawSpider);
+  }
+
   // ---------------- PREDMETI ----------------
   function objects(scene) {
     // ormar za skrivanje
@@ -466,6 +487,7 @@ const Art = (() => {
     eyes('oci_tihi', 16, 8, [[4, 4], [11.5, 3.6]], 'rgba(255,70,50,1)', 1.3);
     eyes('oci_buba', 10, 6, [[3, 3], [7, 3]], 'rgba(255,150,60,1)', 0.8);
     eyes('oci_junak', 12, 6, [[3.5, 3], [8.5, 3]], 'rgba(150,230,255,1)', 0.8);
+    eyes('oci_pauk', 8, 5, [[2.6, 2.5], [5.4, 2.5]], 'rgba(255,60,60,1)', 0.55);
     eyes('oci_bat', 8, 5, [[2.6, 2.5], [5.4, 2.5]], 'rgba(255,210,90,1)', 0.6);
 
     // sitne točkice i sjaj
@@ -531,7 +553,7 @@ const Art = (() => {
 
   return {
     generate(scene) {
-      heroFrames(scene); tihiFrames(scene); bugFrames(scene); batFrames(scene);
+      heroFrames(scene); tihiFrames(scene); bugFrames(scene); batFrames(scene); spiderFrames(scene);
       objects(scene); lights(scene); face(scene);
     },
   };

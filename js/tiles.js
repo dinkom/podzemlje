@@ -176,6 +176,25 @@ const Tiles = (() => {
     if (T.id === 'dubine' && kind === 1) { c.fillStyle = 'rgba(80,200,170,0.6)'; c.fillRect(6, 6.5, 1, 3); c.fillRect(17, 6.5, 1, 4); }
   }
 
+  // šiljci (opasni) — boja po temi
+  function spikeTile(c, T) {
+    const cols = { spilje: ['#8b97ab', '#4b5568'], rudnik: ['#d39bff', '#7a3fb5'], dubine: ['#9fe6e0', '#2f6f78'], kosturnica: ['#efe6d0', '#9a8a70'] }[T.id];
+    for (let i = 0; i < 4; i++) {
+      const x = 3 + i * 6, h = 13 + (i % 2) * 4;
+      c.beginPath(); c.moveTo(x - 3, 24); c.lineTo(x, 24 - h); c.lineTo(x + 3, 24); c.closePath();
+      const g = c.createLinearGradient(x - 3, 0, x + 3, 0); g.addColorStop(0, cols[0]); g.addColorStop(1, cols[1]);
+      c.fillStyle = g; c.fill(); c.strokeStyle = OUTL; c.lineWidth = 0.8; c.stroke();
+      c.fillStyle = 'rgba(160,30,30,0.55)'; c.beginPath(); c.moveTo(x - 0.6, 24 - h + 2); c.lineTo(x, 24 - h); c.lineTo(x + 0.6, 24 - h + 2); c.closePath(); c.fill();
+    }
+  }
+  // daska koja puca
+  function crumbleTile(c, T) {
+    plankTile(c, 1, T);
+    c.strokeStyle = 'rgba(20,10,5,0.9)'; c.lineWidth = 0.7;
+    c.beginPath(); c.moveTo(5, 0); c.lineTo(7, 3); c.lineTo(6, 6.5); c.moveTo(16, 0); c.lineTo(15, 2.5); c.lineTo(18, 4); c.lineTo(17, 6.5); c.stroke();
+    c.fillStyle = 'rgba(255,200,120,0.15)'; c.fillRect(0, 0, 24, 1.2);
+  }
+
   // ---------------- ukrasi: 0-5 iznad poda (0,1 svijetle), 6-11 ispod stropa ----------------
   function decoTile(c, i, T) {
     const R = rng(i * 131 + 7 + T.id.length * 77);
@@ -495,6 +514,8 @@ const Tiles = (() => {
       canvasSheet(scene, 'rocktiles_' + T.id, 8, 6, (c, i) => { if (i < 48) rockTile(c, Math.floor(i / 3), i % 3, T); });
       canvasSheet(scene, 'planktiles_' + T.id, 3, 1, (c, i) => plankTile(c, i, T));
       canvasSheet(scene, 'decotiles_' + T.id, 12, 1, (c, i) => decoTile(c, i, T));
+      canvasSheet(scene, 'spiketiles_' + T.id, 1, 1, (c) => spikeTile(c, T));
+      canvasSheet(scene, 'crumble_' + T.id, 1, 1, (c) => crumbleTile(c, T));
       backgrounds(scene, T);
     },
   };

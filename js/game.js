@@ -6,7 +6,7 @@ const Save = {
   load() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return null; } },
   store(s) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch (e) {} },
   clear() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} },
-  fresh(level = 0) { return { level, cp: null, hasKey: false, doorOpen: false, taken: [] }; },
+  fresh(level = 0) { return { level, cp: null, doorsOpen: [], taken: [] }; },
 };
 
 // stanje kontrola dijele UI scena (touch) i tipkovnica
@@ -15,7 +15,7 @@ const Controls = {
   _p: {},
   press(k) { this._p[k] = true; },
   take(k) { const v = !!this._p[k]; this._p[k] = false; return v; },
-  reset() { this.left = this.right = this.jumpHeld = false; this._p = {}; },
+  reset() { this.left = this.right = this.jumpHeld = this.sneak = false; this._p = {}; },
 };
 
 class GameScene extends Phaser.Scene {
@@ -32,8 +32,8 @@ class GameScene extends Phaser.Scene {
     this.lightsOff = false;
     const taken = new Set(this.save.taken);
     this.taken = new Set(this.save.taken);
-    this.hasKey = this.save.hasKey;
-    this.doorOpen = this.save.doorOpen;
+    this.doorsOpen = new Set(this.save.doorsOpen || []);
+    this.keyCount = L.objects.filter(o => o.type === 'key' && taken.has(o.id)).length - this.doorsOpen.size;
     this.worldW = L.W * TILE; this.worldH = L.H * TILE;
     this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
 
@@ -46,7 +46,8 @@ class GameScene extends Phaser.Scene {
     this.layer = Level.addCollision(this, L);
 
     // predmeti
-    this.items = []; this.cabinets = []; this.notes = []; this.checkpoints = []; this.crawlers = []; this.bats = [];
+    this.items = []; this.cabinets = []; this.notes = []; this.checkpoints = []; this.crawlers = []; this.bats = []; this.spiders = [];
+    this.threads = this.add.graphics().setDepth(12);
     for (const o of L.objects) {
       if (o.type === 'cabinet') {
         const s = this.add.image(o.x, o.y, 'ormar').setOrigin(0.5, 1).setScale(1 / RES).setDepth(9);
@@ -58,7 +59,7 @@ class GameScene extends Phaser.Scene {
         const s = this.add.image(o.x, o.y - 18, 'biljeska').setScale(1 / RES).setDepth(9);
         this.notes.push({ ...o, s });
       } else if (o.type === 'battery' || o.type === 'key') {
-        if (taken.has(o.id) || (o.type === 'key' && this.hasKey)) continue;
+        if (taken.has(o.id)) continue;
         const s = this.add.image(o.x, o.y - 7, o.type === 'key' ? 'kljuc' : 'baterija').setScale(1 / RES).setDepth(11);
         const glow = this.add.image(o.x, o.y - 7, 'glow').setScale(o.type === 'key' ? 0.9 : 0.55).setDepth(61)
           .setTint(o.type === 'key' ? 0xffd25a : 0x6ee09a).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.5);
@@ -69,12 +70,22 @@ class GameScene extends Phaser.Scene {
         this.spawnCrawler(o);
       } else if (o.type === 'bat') {
         this.spawnBat(o);
+      } else if (o.type === 'spider') {
+        this.spawnSpider(o);
       }
     }
     // vrata
-    const D = L.door;
-    this.door = { ...D, s: this.add.image(D.x, D.y, 'vrata').setOrigin(0).setScale(1 / RES).setDepth(8) };
-    if (this.doorOpen) this.openDoor(true);
+    this.doors = L.doors.map(D => ({ ...D, open: false, msg: false, s: this.add.image(D.x, D.y, 'vrata').setOrigin(0).setScale(1 / RES).setDepth(8) }));
+    this.doors.forEach(D => { if (this.doorsOpen.has(D.id)) this.openDoor(D, true); });
+
+    // daske koje pucaju
+    this.crumbles = [];
+    L.grid.forEach((row, y) => row.forEach((ch, x) => {
+      if (ch !== '=') return;
+      const s = this.add.image(x * TILE, y * TILE, 'crumble_' + T.id).setOrigin(0).setScale(1 / RES).setDepth(7);
+      this.crumbles.push({ x, y, s, state: 'ok', t: 0 });
+    }));
+
 
     // sjaj gljiva iznad mraka
     this.glowImgs = this.mushGlows.map(m => this.add.image(m.x, m.y, 'glow').setScale(0.35).setTint(m.col).setAlpha(0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(61));
@@ -88,6 +99,7 @@ class GameScene extends Phaser.Scene {
     const p = this.player = this.physics.add.sprite(sx, sy - 16, 'hero', 'idle0').setScale(1 / RES).setDepth(15);
     p.body.setSize(11 * RES, 22 * RES).setOffset(11 * RES, 9 * RES);
     p.body.setMaxVelocity(400, 620);
+    p.setCollideWorldBounds(true);
     this.physics.add.collider(p, this.layer);
     this.st = { face: 1, coyote: 0, buffer: 0, hp: 3, invul: 0, hidden: null, flash: false, battery: 100, atkCd: 0, atkT: 0, lock: 0, dead: false, jumping: false, airVy: 0, stepT: 0, insideCp: cp ? cp.id : null, doorMsg: false };
     this.peek = this.add.image(0, 0, 'oci_junak').setScale(1 / RES).setDepth(62).setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
@@ -134,9 +146,9 @@ class GameScene extends Phaser.Scene {
     this.dripT = 2; this.heartT = 0; this.time0 = 0;
     this.ui = this.scene.get('UI');
     this.ui.bind(this);
-    if (this.save.hasKey && L.lightsOut) this.applyLightsOut(true);
+    if (L.lightsOutKey && taken.has(L.lightsOutKey)) this.applyLightsOut(true);
     if (!this.save.cp) this.ui.zoneCard(this.levelIndex + 1, L.name);
-    if (!this.save.cp && this.levelIndex === 0) this.time.delayedCall(3200, () => this.ui.toast(this.ui.touchMode ? 'Lijevi palac: hodaj.  Desno: skok, udarac, svjetiljka.' : 'A / D: hodaj   ·   W: skok   ·   J: udarac   ·   K: svjetiljka   ·   L: radnja   ·   Esc: pauza', 5500));
+    if (!this.save.cp && this.levelIndex === 0) this.time.delayedCall(3200, () => this.ui.toast(this.ui.touchMode ? 'Lijevi palac: hodaj (malo pomakni = šuljaj se tiho).  Desno: skok, udarac, svjetiljka.' : 'A / D: hodaj (drži S za šuljanje)   ·   W: skok   ·   J: udarac   ·   K: svjetiljka   ·   L: radnja   ·   Esc: pauza', 5500));
     this.cameras.main.fadeIn(600, 0, 0, 0);
   }
 
@@ -164,6 +176,107 @@ class GameScene extends Phaser.Scene {
     this.physics.add.collider(s, this.layer);
     const eyes = this.add.image(0, 0, 'oci_buba').setScale(1 / RES).setDepth(61).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.55);
     this.crawlers.push({ id: o.id, s, eyes, dir: Math.random() < 0.5 ? -1 : 1, hp: 2, hurtT: 0, alive: true });
+  }
+
+  // ---------------- pauci ----------------
+  spawnSpider(o) {
+    const top = o.y - TILE;
+    let y = top + 4, len = 0;
+    const g = this.L.grid, cx = Math.floor(o.x / TILE);
+    for (let r = Math.floor(top / TILE); r < this.L.H; r++) { const c = g[r][cx]; if (c === '#' || c === '-' || c === '=' || c === 'D') break; len = (r + 1) * TILE - top; }
+    len = Math.max(20, len - 18);
+    const s = this.add.sprite(o.x, top + 8, 'pauk', 'p0').setScale(1 / RES).setDepth(13);
+    s.play('pauk');
+    const eyes = this.add.image(o.x, top + 6, 'oci_pauk').setScale(1 / RES).setDepth(61).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.55);
+    this.spiders.push({ id: o.id, x: o.x, top, y: top + 8, len, s, eyes, state: 'wait', t: 0, hp: 2, alive: true });
+  }
+
+  updateSpiders(dt) {
+    const st = this.st, p = this.player;
+    this.threads.clear();
+    for (const sp of this.spiders) {
+      if (!sp.alive) continue;
+      const dx = p.x - sp.x, below = p.y - sp.top;
+      sp.t = Math.max(0, sp.t - dt);
+      if (sp.state === 'wait') {
+        if (!st.hidden && !st.dead && sp.t <= 0 && Math.abs(dx) < 24 && below > 0 && below < sp.len + 40) { sp.state = 'drop'; SFX.hiss(Phaser.Math.Clamp(-dx / 200, -1, 1)); }
+      } else if (sp.state === 'drop') {
+        sp.y += 280 * dt;
+        if (sp.y >= sp.top + sp.len) { sp.y = sp.top + sp.len; sp.state = 'bottom'; sp.t = 1.3; }
+      } else if (sp.state === 'bottom') {
+        if (sp.t <= 0) sp.state = 'climb';
+      } else if (sp.state === 'climb') {
+        sp.y -= 55 * dt;
+        if (sp.y <= sp.top + 8) { sp.y = sp.top + 8; sp.state = 'wait'; sp.t = 2; }
+      }
+      sp.s.setPosition(sp.x, sp.y);
+      sp.eyes.setPosition(sp.x, sp.y - 3);
+      this.threads.lineStyle(0.6, 0xdde4f0, 0.55);
+      this.threads.lineBetween(sp.x, sp.top, sp.x, sp.y - 5);
+      if (!st.dead && !st.hidden && st.invul <= 0 && Math.abs(dx) < 10 && Math.abs(p.y - sp.y) < 16) { this.hurt(Math.sign(dx) || 1); sp.state = 'climb'; }
+    }
+  }
+
+  hitSpider(sp) {
+    sp.hp--; SFX.bugHit(); Buzz(20);
+    sp.s.setTint(0xffffff); this.time.delayedCall(90, () => sp.alive && sp.s.clearTint());
+    if (sp.state === 'wait' || sp.state === 'bottom') { sp.state = 'climb'; }
+    if (sp.hp <= 0) {
+      sp.alive = false; SFX.bugDie();
+      this.burst.emitParticleAt(sp.x, sp.y, 14);
+      sp.s.destroy(); sp.eyes.destroy();
+    }
+  }
+
+  // ---------------- daske koje pucaju ----------------
+  updateCrumbles(dt) {
+    const p = this.player, b = p.body, ground = b.blocked.down;
+    for (const c of this.crumbles) {
+      const x0 = c.x * TILE, top = c.y * TILE;
+      if (c.state === 'ok') {
+        if (ground && Math.abs(this.feet(p) - top) < 3 && b.right > x0 && b.x < x0 + TILE) { c.state = 'shake'; c.t = 0.7; SFX.creak(); }
+      } else if (c.state === 'shake') {
+        c.t -= dt;
+        c.s.x = x0 + (Math.random() - 0.5) * 1.6;
+        if (c.t <= 0) {
+          c.state = 'gone'; c.t = 4;
+          this.layer.removeTileAt(c.x, c.y);
+          SFX.crumble();
+          this.tweens.add({ targets: c.s, y: top + 50, alpha: 0, angle: (Math.random() - 0.5) * 30, duration: 600 });
+        }
+      } else if (c.state === 'gone') {
+        c.t -= dt;
+        const over = b.right > x0 - 2 && b.x < x0 + TILE + 2 && b.bottom > top - 2 && b.y < top + TILE;
+        if (c.t <= 0 && !over) {
+          const t = this.layer.putTileAt(1, c.x, c.y);
+          t.setCollision(false, false, true, false);
+          c.state = 'ok';
+          c.s.setPosition(x0, top).setAngle(0).setAlpha(0);
+          this.tweens.add({ targets: c.s, alpha: 1, duration: 400 });
+        }
+      }
+    }
+  }
+
+  // ---------------- šiljci ----------------
+  checkSpikes() {
+    const st = this.st, b = this.player.body, g = this.L.grid;
+    if (st.hidden) return;
+    const cy = Math.floor((b.bottom - 3) / TILE);
+    const row = g[cy]; if (!row) return;
+    for (let cx = Math.floor(b.x / TILE); cx <= Math.floor((b.right - 1) / TILE); cx++) {
+      if (row[cx] !== '^') continue;
+      if (b.bottom - 3 < cy * TILE + 9) continue; // vrhovi šiljaka u donjem dijelu ćelije
+      st.hp--; SFX.hurt(); Buzz(110);
+      this.cameras.main.shake(180, 0.008);
+      if (st.hp <= 0) { this.die('hp'); return; }
+      st.invul = 1.3; st.lock = 0.3;
+      const sp = st.safe || { x: this.L.start.x, y: this.L.start.y - 16 };
+      this.player.body.setVelocity(0, 0);
+      this.player.setPosition(sp.x, sp.y);
+      this.cameras.main.flash(200, 120, 0, 0);
+      return;
+    }
   }
 
   spawnBat(o) {
@@ -258,8 +371,7 @@ class GameScene extends Phaser.Scene {
     this.physics.add.collider(s, this.layer);
     const eyes = this.add.image(0, 0, 'oci_tihi').setScale(1 / RES).setDepth(60).setBlendMode(Phaser.BlendModes.ADD);
     const M = { ...m, s, eyes, dir: -1, state: 'patrol', lastX: m.x, loseT: 0, searchT: 0, flipT: 0, stepT: 0, wakeT: 0, active: true };
-    if (m.dormant && !this.hasKey) { M.active = false; s.setVisible(false); s.body.enable = false; eyes.setVisible(false); }
-    else if (m.dormant) { M.active = false; s.setVisible(false); s.body.enable = false; eyes.setVisible(false); M.spent = true; }
+    if (m.dormant) { M.active = false; s.setVisible(false); s.body.enable = false; eyes.setVisible(false); if (this.taken.has(m.dormant)) M.spent = true; }
     s.play('tihi-walk');
     return M;
   }
@@ -287,12 +399,15 @@ class GameScene extends Phaser.Scene {
     this.monsters.forEach(m => this.updateMonster(m, dt));
     this.crawlers.forEach(c => this.updateCrawler(c, dt));
     this.bats.forEach(bt => this.updateBat(bt, dt));
+    this.updateSpiders(dt);
+    this.updateCrumbles(dt);
+    if (!st.dead) this.checkSpikes();
     if (!st.dead) this.interactions(dt);
     this.updateFx(dt);
     this.drawDarkness(time);
     this.updateAudio(dt);
 
-    this.registry.set('hud', { hp: st.hp, battery: st.battery, key: this.hasKey, flash: st.flash, hidden: !!st.hidden });
+    this.registry.set('hud', { hp: st.hp, battery: st.battery, key: this.keyCount, flash: st.flash, hidden: !!st.hidden });
   }
 
   updatePlayer(dt, K, JD) {
@@ -336,8 +451,10 @@ class GameScene extends Phaser.Scene {
     const wet = this.inWater(p.x, this.feet(p));
     if (wet && !st.wasWet && b.velocity.y > 60) { SFX.splash(0.25); this.noise(p.x, p.y, 160); }
     st.wasWet = wet;
-    const target = dir * (wet ? 66 : 118);
-    if (st.lock <= 0) b.setVelocityX(Phaser.Math.Linear(b.velocity.x, target, Math.min(1, dt * (ground ? 16 : 9))));
+    const sneak = Controls.sneak || K.S.isDown;
+    st.sneak = sneak && dir !== 0;
+    const target = dir * (wet ? 66 : sneak ? 58 : 118);
+    if (st.lock <= 0) b.setVelocityX(Phaser.Math.Linear(b.velocity.x, target, Math.min(1, dt * (ground ? 16 : 12))));
     if (dir !== 0 && st.atkT <= 0) st.face = dir;
     p.setFlipX(st.face < 0);
 
@@ -350,6 +467,14 @@ class GameScene extends Phaser.Scene {
     if (st.jumping && !jumpH && b.velocity.y < -130) b.setVelocityY(-130);
     if (b.velocity.y >= 0) st.jumping = false;
 
+    // zapamti sigurno tlo (za povratak nakon šiljaka)
+    if (ground && !wet) {
+      const g = this.L.grid, cx = Math.floor(p.x / TILE), fy = Math.floor((this.feet(p) + 4) / TILE);
+      const under = g[fy] && g[fy][cx], row = g[fy - 1] || [];
+      const solidish = (c) => c === '#' || c === '-';
+      const ur = g[fy] || [];
+      if (solidish(under) && solidish(ur[cx - 1]) && solidish(ur[cx + 1]) && row[cx - 1] !== '^' && row[cx] !== '^' && row[cx + 1] !== '^') st.safe = { x: cx * TILE + TILE / 2, y: p.y };
+    }
     // doskok
     if (ground && st.airVy > 260) { SFX.land(); this.dust.emitParticleAt(p.x, this.feet(p), 4); }
     st.airVy = ground ? 0 : Math.max(st.airVy, b.velocity.y);
@@ -359,7 +484,8 @@ class GameScene extends Phaser.Scene {
       st.stepT -= dt;
       if (st.stepT <= 0) {
         if (wet) { st.stepT = 0.36; SFX.splash(); this.noise(p.x, p.y, 150); }
-        else { st.stepT = 0.27; SFX.step(); }
+        else if (st.sneak) { st.stepT = 0.4; SFX.step(0.03); }
+        else { st.stepT = 0.27; SFX.step(); this.noise(p.x, p.y, 115); }
       }
     } else st.stepT = 0.05;
 
@@ -375,6 +501,7 @@ class GameScene extends Phaser.Scene {
         if (Phaser.Geom.Intersects.RectangleToRectangle(hit, r)) this.hitCrawler(c, st.face);
       });
       this.bats.forEach(bt => { if (bt.alive && bt.state !== 'sleep' && hit.contains(bt.x, bt.y)) this.killBat(bt); });
+      this.spiders.forEach(sp => { if (sp.alive && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(sp.x - 8, sp.y - 8, 16, 16))) this.hitSpider(sp); });
       this.noise(p.x, p.y, 170);
     }
     this.slash.setVisible(st.atkT > 0);
@@ -424,25 +551,41 @@ class GameScene extends Phaser.Scene {
     const same = Math.abs(this.feet(s) - this.feet(p)) < 62;
     const facing = Math.sign(dx) === m.dir;
     const visible = !st.hidden && !st.dead;
-    const sees = visible && same && ((st.flash && adx < 270) || (facing && adx < 105) || adx < 50);
+    const sees = visible && same && ((st.flash && adx < 270) || (facing && adx < 115) || adx < 55);
+    m.sawT = (sees || (m.state === 'chase' && visible && same && adx < 380)) ? 0 : (m.sawT || 0) + dt;
+    m.lungeCd = Math.max(0, (m.lungeCd || 0) - dt); m.lungeT = Math.max(0, (m.lungeT || 0) - dt);
+    if (m.state === 'inspect') {
+      if (!st.hidden) { this.startChase(m); }
+      else {
+        const tx = m.target.x;
+        m.dir = tx > s.x ? 1 : -1;
+        if (Math.abs(tx - s.x) < 16) {
+          m.state = 'opening'; b.setVelocityX(0);
+          this.tweens.add({ targets: m.target.s, x: m.target.x + 1.5, duration: 40, yoyo: true, repeat: 6 });
+          SFX.door();
+          this.time.delayedCall(500, () => { if (this.st.hidden) { this.st.hidden = null; p.setVisible(true); this.peek.setVisible(false); this.die('monster'); } });
+        }
+      }
+    }
+    if (m.state === 'opening') { b.setVelocityX(0); s.setFlipX(m.dir < 0); if (s.anims.currentAnim?.key !== 'tihi-idle') s.play('tihi-idle'); m.eyes.setPosition(s.x + (m.dir > 0 ? 9 : -9), s.y - 30); return; }
 
     if (m.state === 'patrol') {
       if (sees) this.startChase(m);
     } else if (m.state === 'chase') {
       if (visible && same && adx < 380) { m.lastX = p.x; m.loseT = 0; }
       else m.loseT += dt;
-      if (Math.abs(m.lastX - s.x) < 10 && !(visible && same)) { m.state = 'search'; m.searchT = 2.6; m.flipT = 0.7; }
-      if (m.loseT > 3.2) { m.state = 'search'; m.searchT = 2.6; m.flipT = 0.7; }
+      if (Math.abs(m.lastX - s.x) < 10 && !(visible && same)) { m.state = 'search'; m.searchT = 4.5; m.flipT = 0.7; }
+      if (m.loseT > 3.2) { m.state = 'search'; m.searchT = 4.5; m.flipT = 0.7; }
     } else if (m.state === 'search') {
       m.searchT -= dt; m.flipT -= dt;
-      if (m.flipT <= 0) { m.dir *= -1; m.flipT = 0.8; }
+      if (m.flipT <= 0) { m.dir *= -1; m.flipT = 0.9; }
       if (sees) this.startChase(m);
       else if (m.searchT <= 0) m.state = 'patrol';
     }
 
     let speed = 0;
     if (m.state === 'patrol') {
-      speed = 36;
+      speed = 42;
       if (s.x <= m.minX + 2) m.dir = 1;
       if (s.x >= m.maxX - 2) m.dir = -1;
       if (b.blocked.down && b.blocked.left && !this.monsterStep(m, -1)) m.dir = 1;
@@ -450,10 +593,14 @@ class GameScene extends Phaser.Scene {
     } else if (m.state === 'chase') {
       const tx = Phaser.Math.Clamp(m.lastX, m.cMin, m.cMax);
       m.dir = tx > s.x ? 1 : -1;
-      speed = Math.abs(tx - s.x) < 6 ? 0 : 100;
+      if (same && adx < 90 && m.lungeCd <= 0 && visible) { m.lungeT = 0.5; m.lungeCd = 2.6; SFX.stomp(0.6, 0); }
+      speed = Math.abs(tx - s.x) < 6 ? 0 : (m.lungeT > 0 ? 150 : 108);
+    } else if (m.state === 'inspect') {
+      speed = 100;
     }
     // ne izlazi iz svog područja
-    const lo = m.state === 'chase' ? m.cMin : m.minX, hi = m.state === 'chase' ? m.cMax : m.maxX;
+    const wide = m.state === 'chase' || m.state === 'inspect';
+    const lo = wide ? m.cMin : m.minX, hi = wide ? m.cMax : m.maxX;
     if ((s.x <= lo && m.dir < 0) || (s.x >= hi && m.dir > 0)) speed = 0;
     // ne pada u prave rupe (plitka lokva nije rupa — kroz nju gazi)
     if (speed > 0 && b.blocked.down) {
@@ -461,11 +608,11 @@ class GameScene extends Phaser.Scene {
       const ground = this.solidAt(ax, fy) || this.solidAt(ax, fy + TILE) || this.solidAt(ax, fy + TILE * 2);
       if (!ground) { speed = 0; if (m.state === 'patrol') m.dir *= -1; }
     }
-    if (speed > 0 && m.state === 'chase' && ((m.dir < 0 && b.blocked.left) || (m.dir > 0 && b.blocked.right))) this.monsterStep(m, m.dir);
+    if (speed > 0 && wide && ((m.dir < 0 && b.blocked.left) || (m.dir > 0 && b.blocked.right))) this.monsterStep(m, m.dir);
     const mWet = this.inWater(s.x, this.feet(s));
     b.setVelocityX(m.dir * speed * (mWet ? 0.7 : 1));
     s.setFlipX(m.dir < 0);
-    const anim = speed === 0 ? 'tihi-idle' : m.state === 'chase' ? 'tihi-chase' : 'tihi-walk';
+    const anim = speed === 0 ? 'tihi-idle' : wide ? 'tihi-chase' : 'tihi-walk';
     if (s.anims.currentAnim?.key !== anim) s.play(anim);
 
     // oči iznad mraka
@@ -476,7 +623,7 @@ class GameScene extends Phaser.Scene {
     if (speed > 0) {
       m.stepT -= dt;
       if (m.stepT <= 0) {
-        m.stepT = m.state === 'chase' ? 0.3 : 0.62;
+        m.stepT = wide ? 0.3 : 0.6;
         const d = Math.hypot(dx, this.feet(s) - this.feet(p));
         const vol = Phaser.Math.Clamp(1 - d / 430, 0, 1) * 0.9;
         SFX.stomp(vol, Phaser.Math.Clamp(-dx / 300, -1, 1));
@@ -573,12 +720,12 @@ class GameScene extends Phaser.Scene {
       const note = this.notes.find(n => Math.abs(n.x - p.x) < 16 && Math.abs(n.y - pf) < 10);
       if (note && !cab) { label = 'Pročitaj'; this.ctxAction = () => { SFX.page(); this.ui.showNote(this.L.notes[note.id]); }; }
       // vrata
-      if (!this.doorOpen) {
-        const D = this.door;
+      for (const D of this.doors) {
+        if (D.open) continue;
         const near = Math.abs(p.x - (D.x + 24)) < 62 && pf > D.y && pf <= D.y + 97;
-        if (near && this.hasKey) { label = 'Otključaj'; this.ctxAction = () => this.openDoor(false); }
-        else if (near && !st.doorMsg) { st.doorMsg = true; this.ui.toast('Zaključano. Treba ti ključ.'); }
-        else if (!near) st.doorMsg = false;
+        if (near && this.keyCount > 0) { label = 'Otključaj'; this.ctxAction = () => this.openDoor(D, false); }
+        else if (near && !D.msg) { D.msg = true; this.ui.toast('Zaključano. Treba ti ključ.'); }
+        else if (!near) D.msg = false;
       }
     }
     this.registry.set('context', label);
@@ -591,7 +738,7 @@ class GameScene extends Phaser.Scene {
         it.done = true; this.taken.add(it.id);
         this.tweens.add({ targets: [it.s, it.glow], alpha: 0, y: it.baseY - 14, duration: 350, onComplete: () => { it.s.destroy(); it.glow.destroy(); } });
         if (it.type === 'battery') { st.battery = Math.min(100, st.battery + 35); SFX.pickup(); this.ui.toast('+ baterija'); }
-        else { this.hasKey = true; SFX.key(); this.ui.toast('Uzeo si stari ključ…', 2000); this.wakeTheSleeper(); }
+        else { this.keyCount++; SFX.key(); this.ui.toast('Uzeo si stari ključ…', 2000); this.wakeTheSleeper(it.id); }
       }
     }
 
@@ -601,7 +748,7 @@ class GameScene extends Phaser.Scene {
       st.insideCp = cp.id;
       this.checkpoints.forEach(c => c.s.setFrame(c === cp ? 'on' : 'off'));
       st.hp = 3; st.battery = 100;
-      this.save = { level: this.levelIndex, cp: cp.id, hasKey: this.hasKey, doorOpen: this.doorOpen, taken: [...this.taken] };
+      this.save = { level: this.levelIndex, cp: cp.id, doorsOpen: [...this.doorsOpen], taken: [...this.taken] };
       Save.store(this.save);
       SFX.save(); Buzz(30);
       this.ui.toast('Sigurno mjesto. Igra je spremljena.', 2200);
@@ -624,13 +771,13 @@ class GameScene extends Phaser.Scene {
   hide(cab) {
     const st = this.st, p = this.player;
     // ako te vidi izbliza dok se skrivaš — kasno je
-    const close = this.monsters.find(m => m.active && m.state === 'chase' && Math.abs(m.s.x - p.x) < 58 && Math.abs(this.feet(m.s) - this.feet(p)) < 60);
+    const watchers = this.monsters.filter(m => m.active && m.state === 'chase' && m.sawT < 0.7 && Math.abs(m.s.x - p.x) < 210 && Math.abs(this.feet(m.s) - this.feet(p)) < 62);
     st.hidden = cab; st.flash = false;
     p.setVisible(false); p.body.setVelocity(0, 0); p.x = cab.x;
     this.peek.setPosition(cab.x, cab.y - 30).setVisible(true);
     this.tweens.add({ targets: cab.s, x: cab.x + 0.6, duration: 50, yoyo: true, repeat: 3 });
     SFX.door();
-    if (close) this.time.delayedCall(450, () => { st.hidden = null; p.setVisible(true); this.peek.setVisible(false); this.die('monster'); });
+    watchers.forEach(m => { m.state = 'inspect'; m.target = cab; });
   }
 
   unhide() {
@@ -641,26 +788,27 @@ class GameScene extends Phaser.Scene {
     SFX.click();
   }
 
-  openDoor(instant) {
-    this.doorOpen = true;
-    const D = this.door;
+  openDoor(D, instant) {
+    D.open = true; this.doorsOpen.add(D.id);
     for (let y = D.ty; y < D.ty + D.h; y++) for (let x = D.tx; x < D.tx + D.w; x++) this.layer.removeTileAt(x, y);
     if (instant) { D.s.setVisible(false); return; }
+    this.keyCount--;
     SFX.door(); Buzz(80);
     this.cameras.main.shake(400, 0.004);
     this.tweens.add({ targets: D.s, y: D.y - 90, alpha: 0, duration: 1400, ease: 'Sine.easeIn' });
     this.ui.toast('Vrata su se otvorila.', 1800);
   }
 
-  wakeTheSleeper() {
-    if (this.L.lightsOut) this.time.delayedCall(500, () => { this.applyLightsOut(false); this.ui.toast('Sve su se svijeće ugasile…', 2200); });
-    const ms = this.monsters.filter(x => x.dormant && !x.spent);
+  wakeTheSleeper(keyId) {
+    const lo = this.L.lightsOutKey === keyId;
+    if (lo) this.time.delayedCall(500, () => { this.applyLightsOut(false); this.ui.toast('Sve su se svijeće ugasile…', 2200); });
+    const ms = this.monsters.filter(x => x.dormant === keyId && !x.spent);
     if (!ms.length) return;
     ms.forEach(m => { m.spent = true; });
-    this.time.delayedCall(this.L.lightsOut ? 1800 : 900, () => {
+    this.time.delayedCall(lo ? 1800 : 900, () => {
       SFX.rumble(); Buzz([300, 100, 300]);
       this.cameras.main.shake(1200, 0.006);
-      if (!this.L.lightsOut) this.ui.toast('Nešto se probudilo u zidu…', 2400);
+      if (!lo) this.ui.toast('Nešto se probudilo u zidu…', 2400);
       ms.forEach(m => { m.wakeT = 1.4; });
     });
   }

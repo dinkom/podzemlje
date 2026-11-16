@@ -129,10 +129,11 @@ class UIScene extends Phaser.Scene {
     const ax = (j.kx - j.bx) / R;
     Controls.left = ax < -0.28;
     Controls.right = ax > 0.28;
+    Controls.sneak = Math.abs(ax) < 0.62;   // palac malo pomaknut = šuljanje
   }
 
   up(p) {
-    if (this.joy.pid === p.id) { this.joy.pid = null; Controls.left = Controls.right = false; }
+    if (this.joy.pid === p.id) { this.joy.pid = null; Controls.left = Controls.right = Controls.sneak = false; }
     for (const k in this.btn) {
       const b = this.btn[k];
       if (b.pid === p.id) { b.pid = null; if (k === 'jump') Controls.jumpHeld = false; }
@@ -149,7 +150,7 @@ class UIScene extends Phaser.Scene {
   update() {
     const g = this.g, u = this.u, B = this.btn;
     g.clear();
-    if (!this.gameRef || this.overlay) { this.ctxText.setVisible(false); this.keyHint.setVisible(false); return; }
+    if (!this.gameRef || this.overlay) { this.ctxText.setVisible(false); this.keyHint.setVisible(false); if (this.keyNum) this.keyNum.setVisible(false); return; }
     const hud = this.registry.get('hud') || { hp: 3, battery: 100 };
     const ctx = this.registry.get('context');
     const touch = this.touchMode;
@@ -225,11 +226,13 @@ class UIScene extends Phaser.Scene {
     g.lineStyle(2 * u, 0xffffff, 0.5); g.strokeRoundedRect(bx, by, bw, bh, 3 * u);
     g.fillStyle(0xffffff, 0.5); g.fillRect(bx + bw, by + 4 * u, 3 * u, bh - 8 * u);
     // ključ
-    if (hud.key) {
+    if (hud.key > 0) {
       const kx = 128 * u, ky = 54 * u;
       g.lineStyle(3 * u, 0xe7bf4c, 1); g.strokeCircle(kx, ky, 5 * u);
       g.lineBetween(kx + 5 * u, ky, kx + 18 * u, ky); g.lineBetween(kx + 14 * u, ky, kx + 14 * u, ky + 5 * u);
     }
+    if (!this.keyNum) this.keyNum = this.add.text(0, 0, '', { fontFamily: FONT, fontStyle: 'bold', color: '#e7bf4c' }).setOrigin(0, 0.5);
+    this.keyNum.setVisible(hud.key > 1).setText('×' + hud.key).setPosition(150 * u, 54 * u).setFontSize(Math.round(13 * u));
   }
 
   // ---------------- poruke i prozori ----------------

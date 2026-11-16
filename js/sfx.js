@@ -106,6 +106,9 @@ const SFX = (() => {
     splash(vol = 0.16) { noise({ d: 0.18, vol, type: 'bandpass', f: 1400, f2: 500, q: 0.7 }); tone({ type: 'sine', f: 600 + Math.random() * 300, f2: 250, d: 0.08, vol: vol * 0.3 }); },
     batWake(pan = 0) { tone({ type: 'square', f: 3200, f2: 2400, d: 0.06, vol: 0.05, pan }); tone({ type: 'square', f: 3500, f2: 2600, d: 0.06, vol: 0.05, pan, delay: 0.09 }); noise({ d: 0.2, vol: 0.08, type: 'bandpass', f: 2500, q: 2, pan }); },
     flap(vol = 0.05, pan = 0) { noise({ d: 0.06, vol, type: 'bandpass', f: 700, q: 1.5, pan }); },
+    hiss(pan = 0) { noise({ a: 0.02, d: 0.35, vol: 0.12, type: 'highpass', f: 3500, pan }); },
+    creak() { tone({ type: 'sawtooth', f: 180, f2: 120, a: 0.02, d: 0.35, vol: 0.06 }); noise({ d: 0.3, vol: 0.06, type: 'bandpass', f: 900, q: 4 }); },
+    crumble() { noise({ a: 0.01, d: 0.5, vol: 0.28, f: 1200, f2: 150 }); tone({ type: 'sine', f: 90, f2: 40, d: 0.3, vol: 0.18 }); },
     bell() { [196, 392.5, 588].forEach((f, i) => tone({ type: 'sine', f, a: 0.01, d: 3, vol: 0.04 / (i + 1) })); },
     lightsOut() { noise({ a: 0.05, d: 1.2, vol: 0.25, type: 'lowpass', f: 900, f2: 100 }); tone({ type: 'sine', f: 220, f2: 55, a: 0.02, d: 1.6, vol: 0.2 }); },
     tension(v) { // 0..1 — pojačava dron kad je čudovište blizu

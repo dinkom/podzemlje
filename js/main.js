@@ -15,6 +15,7 @@ class BootScene extends Phaser.Scene {
     A.create({ key: 'tihi-chase', frames: fr('tihi', ['chase0', 'chase1', 'chase2', 'chase3']), frameRate: 9, repeat: -1 });
     A.create({ key: 'tihi-idle', frames: fr('tihi', ['idle0', 'idle1']), frameRate: 1.6, repeat: -1 });
     A.create({ key: 'bug-walk', frames: fr('bug', ['c0', 'c1']), frameRate: 7, repeat: -1 });
+    A.create({ key: 'pauk', frames: fr('pauk', ['p0', 'p1']), frameRate: 6, repeat: -1 });
     A.create({ key: 'bat-hang', frames: fr('bat', ['hang0', 'hang1']), frameRate: 1.2, repeat: -1 });
     A.create({ key: 'bat-fly', frames: fr('bat', ['fly0', 'fly1', 'fly2', 'fly1']), frameRate: 14, repeat: -1 });
     this.scene.start('Title');
