@@ -119,12 +119,12 @@ class GameScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
 
     // tipkovnica (za testiranje na računalu)
-    this.keys = this.input.keyboard.addKeys('LEFT,RIGHT,UP,DOWN,A,D,W,SPACE,J,X,F,L,E,ESC');
+    this.keys = this.input.keyboard.addKeys('A,D,W,S,SPACE,J,K,L,ESC');
 
     this.dripT = 2; this.heartT = 0; this.time0 = 0;
     this.ui = this.scene.get('UI');
     this.ui.bind(this);
-    if (!this.save.cp) this.time.delayedCall(600, () => this.ui.toast('Lijevi palac: hodaj.  Desno: skok, udarac, svjetiljka.', 4200));
+    if (!this.save.cp) this.time.delayedCall(600, () => this.ui.toast(this.ui.touchMode ? 'Lijevi palac: hodaj.  Desno: skok, udarac, svjetiljka.' : 'A / D: hodaj   ·   W: skok   ·   J: udarac   ·   K: svjetiljka   ·   L: radnja   ·   Esc: pauza', 5500));
     this.cameras.main.fadeIn(600, 0, 0, 0);
   }
 
@@ -200,13 +200,13 @@ class GameScene extends Phaser.Scene {
   updatePlayer(dt, K, JD) {
     const st = this.st, p = this.player, b = p.body;
     const ground = b.blocked.down || b.touching.down;
-    const left = Controls.left || K.LEFT.isDown || K.A.isDown;
-    const right = Controls.right || K.RIGHT.isDown || K.D.isDown;
-    const jumpP = Controls.take('jump') | JD(K.SPACE) | JD(K.UP) | JD(K.W);
-    const jumpH = Controls.jumpHeld || K.SPACE.isDown || K.UP.isDown || K.W.isDown;
-    const atkP = Controls.take('attack') | JD(K.J) | JD(K.X);
-    const flashP = Controls.take('flash') | JD(K.F) | JD(K.L);
-    const ctxP = Controls.take('context') | JD(K.E) | JD(K.DOWN);
+    const left = Controls.left || K.A.isDown;
+    const right = Controls.right || K.D.isDown;
+    const jumpP = Controls.take('jump') | JD(K.W) | JD(K.SPACE);
+    const jumpH = Controls.jumpHeld || K.W.isDown || K.SPACE.isDown;
+    const atkP = Controls.take('attack') | JD(K.J);
+    const flashP = Controls.take('flash') | JD(K.K);
+    const ctxP = Controls.take('context') | JD(K.L);
 
     st.invul = Math.max(0, st.invul - dt);
     st.atkCd = Math.max(0, st.atkCd - dt);

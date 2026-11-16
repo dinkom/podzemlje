@@ -34,20 +34,37 @@ class TitleScene extends Phaser.Scene {
     this.build();
     this.scale.on('resize', this.build, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.build, this));
-    this.input.on('pointerup', (p) => {
-      SFX.init();
-      goFullscreen(this);
-      const hit = (this.buttons || []).find(b => b.r.getBounds().contains(p.x, p.y));
-      if (!hit) return;
-      SFX.click();
-      if (hit.act === 'new') Save.clear();
+    this.sel = 0; this.starting = false;
+    const start = (act) => {
+      if (this.starting) return; this.starting = true;
+      SFX.init(); SFX.click();
+      if (act === 'new') Save.clear();
       this.cameras.main.fadeOut(500, 0, 0, 0);
       this.time.delayedCall(520, () => {
         this.scene.launch('UI');
         this.scene.start('Game');
         this.scene.bringToTop('UI');
       });
+    };
+    this.input.on('pointerup', (p) => {
+      SFX.init();
+      if (p.wasTouch) goFullscreen(this);
+      const hit = (this.buttons || []).find(b => b.r.getBounds().contains(p.x, p.y));
+      if (hit) start(hit.act);
     });
+    this.input.keyboard.on('keydown', (e) => {
+      SFX.init();
+      const n = this.buttons.length;
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') this.sel = (this.sel + n - 1) % n;
+      else if (e.code === 'ArrowDown' || e.code === 'KeyS') this.sel = (this.sel + 1) % n;
+      else if (e.code === 'Enter' || e.code === 'Space') { start(this.buttons[this.sel].act); return; }
+      else return;
+      SFX.click(); this.paintSel();
+    });
+  }
+
+  paintSel() {
+    (this.buttons || []).forEach((b, i) => b.r.setFillStyle(0xffffff, i === this.sel ? 0.2 : 0.07).setStrokeStyle(2 * this.u, 0xe9dfc6, i === this.sel ? 1 : 0.55));
   }
 
   build() {
@@ -79,7 +96,8 @@ class TitleScene extends Phaser.Scene {
       c.add([r, t]);
       this.buttons.push({ r, act });
     });
-    const hint = this.add.text(w / 2, h - 18 * u, 'Najbolje sa slušalicama. Vibracija uključena.', { fontFamily: FONT, fontSize: Math.round(11 * u) + 'px', color: '#6f7d8c' }).setOrigin(0.5);
+    this.u = u; this.sel = Math.min(this.sel || 0, this.buttons.length - 1); this.paintSel();
+    const hint = this.add.text(w / 2, h - 18 * u, 'Najbolje sa slušalicama.  ·  Na računalu: W / S + Enter', { fontFamily: FONT, fontSize: Math.round(11 * u) + 'px', color: '#6f7d8c' }).setOrigin(0.5);
     c.add(hint);
   }
 
@@ -100,6 +118,7 @@ class EndScene extends Phaser.Scene {
     const r = this.add.rectangle(w / 2, h * 0.74, 240 * u, 44 * u, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, 0.55);
     this.add.text(w / 2, h * 0.74, 'Izbornik', { fontFamily: FONT, fontSize: Math.round(20 * u) + 'px', color: '#e9dfc6' }).setOrigin(0.5);
     this.input.on('pointerup', (p) => { if (r.getBounds().contains(p.x, p.y)) { SFX.click(); this.scene.start('Title'); } });
+    this.input.keyboard.on('keydown-ENTER', () => { SFX.click(); this.scene.start('Title'); });
   }
 }
 

@@ -18,6 +18,11 @@ class UIScene extends Phaser.Scene {
     this.layout();
     this.scale.on('resize', this.layout, this);
 
+    // touch kontrole samo na uređajima s dodirom; tipkovnica ih skriva
+    this.touchMode = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 && !window.matchMedia('(pointer: fine)').matches;
+    this.input.keyboard.on('keydown', this.keyDown, this);
+    this.keyHint = this.add.text(0, 0, '', { fontFamily: FONT, color: '#f3ead2', align: 'center', backgroundColor: 'rgba(0,0,0,0.55)', padding: { x: 10, y: 6 } }).setOrigin(0.5).setVisible(false);
+    this.layout();
     this.input.on('pointerdown', this.down, this);
     this.input.on('pointermove', this.move, this);
     this.input.on('pointerup', this.up, this);
@@ -48,6 +53,7 @@ class UIScene extends Phaser.Scene {
     set(B.context, w - 196 * u, h - 150 * u);
     set(B.pause, w - 32 * u, 30 * u);
     this.ctxText.setPosition(B.context.x, B.context.y).setFontSize(Math.round(12 * u)).setWordWrapWidth(B.context.R * 1.9);
+    if (this.keyHint) this.keyHint.setPosition(w / 2, h - 40 * u).setFontSize(Math.round(16 * u));
     this.toastText.setPosition(w / 2, 62 * u).setFontSize(Math.round(17 * u)).setWordWrapWidth(w * 0.7);
     if (this.overlay && this.overlay.relayout) this.overlay.relayout();
   }
@@ -62,9 +68,30 @@ class UIScene extends Phaser.Scene {
     return null;
   }
 
+  keyDown(e) {
+    if (this.touchMode) { this.touchMode = false; this.releaseAll(); }
+    const ov = this.overlay;
+    if (!ov) return;
+    const k = e.code;
+    if (ov.kind === 'note') {
+      if (['Space', 'Enter', 'KeyL', 'Escape'].includes(k)) { SFX.page(); this.closeOverlay(true); }
+    } else if (ov.kind === 'pause') {
+      if (k === 'Escape') { SFX.click(); this.closeOverlay(true); }
+      else if (k === 'ArrowUp' || k === 'KeyW') { ov.sel = (ov.sel + ov.buttons.length - 1) % ov.buttons.length; ov.paint(); SFX.click(); }
+      else if (k === 'ArrowDown' || k === 'KeyS') { ov.sel = (ov.sel + 1) % ov.buttons.length; ov.paint(); SFX.click(); }
+      else if (k === 'Enter' || k === 'Space') ov.choose(ov.buttons[ov.sel].act);
+    }
+  }
+
   down(p) {
+    if (p.wasTouch && !this.touchMode) this.touchMode = true;
     if (this.overlay) { this.overlay.tap?.(p); return; }
     if (!this.gameRef) return;
+    if (!this.touchMode) { // mišem se može samo na pauzu
+      const b = this.btn.pause;
+      if (Phaser.Math.Distance.Between(p.x, p.y, b.x, b.y) < b.R * 1.25) Controls.press('pause');
+      return;
+    }
     const k = this.hitBtn(p.x, p.y);
     if (k) {
       const b = this.btn[k];
@@ -122,9 +149,11 @@ class UIScene extends Phaser.Scene {
   update() {
     const g = this.g, u = this.u, B = this.btn;
     g.clear();
-    if (!this.gameRef || this.overlay) { this.ctxText.setVisible(false); return; }
+    if (!this.gameRef || this.overlay) { this.ctxText.setVisible(false); this.keyHint.setVisible(false); return; }
     const hud = this.registry.get('hud') || { hp: 3, battery: 100 };
     const ctx = this.registry.get('context');
+    const touch = this.touchMode;
+    this.keyHint.setVisible(!touch && !!ctx).setText(ctx ? 'L  ·  ' + ctx : '');
 
     const circle = (b, active, on) => {
       g.fillStyle(on ? 0xffe9a8 : 0xffffff, active ? 0.32 : on ? 0.2 : 0.1);
@@ -132,6 +161,7 @@ class UIScene extends Phaser.Scene {
       g.lineStyle(2 * u, 0xffffff, active ? 0.7 : 0.35);
       g.strokeCircle(b.x, b.y, b.R);
     };
+    if (touch) {
     // skok
     circle(B.jump, B.jump.pid !== null);
     g.lineStyle(4 * u, 0xffffff, 0.75);
@@ -153,7 +183,8 @@ class UIScene extends Phaser.Scene {
       g.fillStyle(0xffe9a8, B.context.pid !== null ? 0.45 : pulse * 0.5); g.fillCircle(B.context.x, B.context.y, B.context.R);
       g.lineStyle(2 * u, 0xffe9a8, 0.9); g.strokeCircle(B.context.x, B.context.y, B.context.R);
     }
-    this.ctxText.setVisible(!!ctx).setText(ctx || '').setColor('#1b1410');
+    }
+    this.ctxText.setVisible(touch && !!ctx).setText(ctx || '').setColor('#1b1410');
     // pauza
     circle(B.pause, false);
     g.fillStyle(0xffffff, 0.75);
@@ -161,7 +192,8 @@ class UIScene extends Phaser.Scene {
 
     // joystick
     const j = this.joy, R = 52 * u;
-    if (j.pid !== null) {
+    if (!touch) { /* tipkovnica — bez joysticka */ }
+    else if (j.pid !== null) {
       g.fillStyle(0xffffff, 0.08); g.fillCircle(j.bx, j.by, R);
       g.lineStyle(2 * u, 0xffffff, 0.3); g.strokeCircle(j.bx, j.by, R);
       const dx = Phaser.Math.Clamp(j.kx - j.bx, -R, R), dy = Phaser.Math.Clamp(j.ky - j.by, -R, R);
@@ -223,7 +255,11 @@ class UIScene extends Phaser.Scene {
     if (!this.overlay) return;
     this.overlay.c.destroy(true);
     this.overlay = null;
-    if (resume && this.scene.isPaused('Game')) this.scene.resume('Game');
+    if (resume && this.scene.isPaused('Game')) {
+      this.scene.resume('Game');
+      const G = this.gameRef;
+      if (G && G.keys) Object.values(G.keys).forEach(k => k.reset());
+    }
   }
 
   showNote(text) {
@@ -237,9 +273,11 @@ class UIScene extends Phaser.Scene {
       paper.fillStyle(0x8a5a3a, 0.14); paper.fillEllipse(w / 2 + pw * 0.38, h / 2 - ph * 0.36, 30 * u, 18 * u);
       paper.lineStyle(3 * u, 0x2a2018, 1); paper.strokeRoundedRect(w / 2 - pw / 2, h / 2 - ph / 2, pw, ph, 6 * u);
       const txt = this.add.text(w / 2, h / 2 - 12 * u, text, { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(17 * u) + 'px', color: '#2a2018', align: 'center', wordWrap: { width: pw - 50 * u }, lineSpacing: 6 * u }).setOrigin(0.5);
-      const hint = this.add.text(w / 2, h / 2 + ph / 2 - 22 * u, 'dodirni za nastavak', { fontFamily: FONT, fontSize: Math.round(12 * u) + 'px', color: '#6b5d48' }).setOrigin(0.5);
+      const hint = this.add.text(w / 2, h / 2 + ph / 2 - 22 * u, this.touchMode ? 'dodirni za nastavak' : 'L ili Enter za nastavak', { fontFamily: FONT, fontSize: Math.round(12 * u) + 'px', color: '#6b5d48' }).setOrigin(0.5);
       ov.c.add([bg, paper, txt, hint]);
-    }).tap = () => { SFX.page(); this.closeOverlay(true); };
+    });
+    this.overlay.kind = 'note';
+    this.overlay.tap = () => { SFX.page(); this.closeOverlay(true); };
   }
 
   openPause() {
@@ -259,14 +297,23 @@ class UIScene extends Phaser.Scene {
         ov.c.add([r, t]);
         ov.buttons.push({ r, act });
       });
+      if (ov.paint) ov.paint();
     });
+    ov.kind = 'pause'; ov.sel = 0;
+    ov.paint = () => ov.buttons.forEach((b, i) => {
+      const on = !this.touchMode && i === ov.sel;
+      b.r.setFillStyle(0xffffff, on ? 0.22 : 0.08).setStrokeStyle(2 * this.u, 0xe9dfc6, on ? 1 : 0.5);
+    });
+    ov.paint();
+    ov.choose = (act) => {
+      SFX.click(); SFX.resume();
+      if (act === 'resume') this.closeOverlay(true);
+      else if (act === 'reload') { this.closeOverlay(false); this.scene.get('Game').scene.restart(); }
+      else { this.closeOverlay(false); this.scene.stop('Game'); this.gameRef = null; this.scene.start('Title'); }
+    };
     ov.tap = (p) => {
       const hit = ov.buttons.find(b => b.r.getBounds().contains(p.x, p.y));
-      if (!hit) return;
-      SFX.click(); SFX.resume();
-      if (hit.act === 'resume') this.closeOverlay(true);
-      else if (hit.act === 'reload') { this.closeOverlay(false); this.scene.get('Game').scene.restart(); }
-      else { this.closeOverlay(false); this.scene.stop('Game'); this.gameRef = null; this.scene.start('Title'); }
+      if (hit) ov.choose(hit.act);
     };
   }
 
