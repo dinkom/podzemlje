@@ -86,13 +86,28 @@ const SFX = (() => {
     [o1, o2, o3].forEach(o => o.connect(lp));
     lp.connect(g); g.connect(master);
     [o1, o2, o3, lfo, lfo2, ns].forEach(n => n.start());
-    droneNodes = { g, ng };
+    droneNodes = { g, ng, o1, o2, o3, lp, nf, lfoG };
   }
 
   return {
     init,
     suspend() { if (ctx && ctx.state === 'running') ctx.suspend(); },
     resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); },
+    setTheme(d) { // d = THEMES[x].drone
+      if (!droneNodes || !ctx) return;
+      const t = now(), N = droneNodes;
+      N.o1.frequency.setTargetAtTime(d.f, t, 1.5);
+      N.o2.frequency.setTargetAtTime(d.f * 1.0115, t, 1.5);
+      N.o3.frequency.setTargetAtTime(d.f3, t, 1.5);
+      N.lp.frequency.setTargetAtTime(d.lp, t, 1.5);
+      N.nf.frequency.setTargetAtTime(d.wind, t, 1.5);
+      N.ng.gain.setTargetAtTime(d.windG, t, 1.5);
+    },
+    splash(vol = 0.16) { noise({ d: 0.18, vol, type: 'bandpass', f: 1400, f2: 500, q: 0.7 }); tone({ type: 'sine', f: 600 + Math.random() * 300, f2: 250, d: 0.08, vol: vol * 0.3 }); },
+    batWake(pan = 0) { tone({ type: 'square', f: 3200, f2: 2400, d: 0.06, vol: 0.05, pan }); tone({ type: 'square', f: 3500, f2: 2600, d: 0.06, vol: 0.05, pan, delay: 0.09 }); noise({ d: 0.2, vol: 0.08, type: 'bandpass', f: 2500, q: 2, pan }); },
+    flap(vol = 0.05, pan = 0) { noise({ d: 0.06, vol, type: 'bandpass', f: 700, q: 1.5, pan }); },
+    bell() { [196, 392.5, 588].forEach((f, i) => tone({ type: 'sine', f, a: 0.01, d: 3, vol: 0.04 / (i + 1) })); },
+    lightsOut() { noise({ a: 0.05, d: 1.2, vol: 0.25, type: 'lowpass', f: 900, f2: 100 }); tone({ type: 'sine', f: 220, f2: 55, a: 0.02, d: 1.6, vol: 0.2 }); },
     tension(v) { // 0..1 — pojačava dron kad je čudovište blizu
       if (!droneNodes || !ok()) return;
       droneNodes.g.gain.setTargetAtTime(0.05 + v * 0.07, now(), 0.4);

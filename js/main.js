@@ -6,6 +6,7 @@ class BootScene extends Phaser.Scene {
   create() {
     Art.generate(this);
     Tiles.generate(this);
+    Tiles.ensureTheme(this, THEMES.spilje);
     const A = this.anims;
     const fr = (key, names) => names.map(n => ({ key, frame: n }));
     A.create({ key: 'hero-idle', frames: fr('hero', ['idle0', 'idle1']), frameRate: 2, repeat: -1 });
@@ -14,6 +15,8 @@ class BootScene extends Phaser.Scene {
     A.create({ key: 'tihi-chase', frames: fr('tihi', ['chase0', 'chase1', 'chase2', 'chase3']), frameRate: 9, repeat: -1 });
     A.create({ key: 'tihi-idle', frames: fr('tihi', ['idle0', 'idle1']), frameRate: 1.6, repeat: -1 });
     A.create({ key: 'bug-walk', frames: fr('bug', ['c0', 'c1']), frameRate: 7, repeat: -1 });
+    A.create({ key: 'bat-hang', frames: fr('bat', ['hang0', 'hang1']), frameRate: 1.2, repeat: -1 });
+    A.create({ key: 'bat-fly', frames: fr('bat', ['fly0', 'fly1', 'fly2', 'fly1']), frameRate: 14, repeat: -1 });
     this.scene.start('Title');
   }
 }
@@ -72,7 +75,7 @@ class TitleScene extends Phaser.Scene {
     if (this.root) this.root.destroy(true);
     const w = this.scale.width, h = this.scale.height, u = h / 360;
     const c = this.root = this.add.container(0, 0);
-    const bg = this.add.tileSprite(0, 0, w, h, 'bgFar').setOrigin(0).setTileScale(h / 560).setAlpha(0.55);
+    const bg = this.add.tileSprite(0, 0, w, h, 'bgFar_spilje').setOrigin(0).setTileScale(h / 560).setAlpha(0.55);
     c.add(bg);
     this.bg = bg;
     const vignette = this.add.graphics();
@@ -85,10 +88,13 @@ class TitleScene extends Phaser.Scene {
     this.eyes = eyes;
     c.add([hero, tihi, eyes]);
     const title = this.add.text(w / 2, h * 0.26, 'PODZEMLJE', { fontFamily: FONT, fontSize: Math.round(54 * u) + 'px', color: '#e9dfc6', letterSpacing: 10 * u, stroke: '#000', strokeThickness: 6 * u }).setOrigin(0.5);
-    const sub = this.add.text(w / 2, h * 0.26 + 44 * u, 'prva zona · Gornje špilje', { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(15 * u) + 'px', color: '#9fb3c8' }).setOrigin(0.5);
+    const sv = Save.load() || {};
+    const zi = Math.min(sv.level || 0, Level.count - 1);
+    const subTxt = sv.done ? 'sve zone prijeđene' : (sv.cp || zi > 0) ? `zona ${zi + 1} · ${THEMES[Level.build(zi).theme].name}` : 'četiri zone tame';
+    const sub = this.add.text(w / 2, h * 0.26 + 44 * u, subTxt, { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(15 * u) + 'px', color: '#9fb3c8' }).setOrigin(0.5);
     c.add([title, sub]);
     this.buttons = [];
-    const has = !!(Save.load() || {}).cp;
+    const has = !sv.done && !!(sv.cp || (sv.level || 0) > 0);
     const opts = has ? [['Nastavi', 'continue'], ['Nova igra', 'new']] : [['Igraj', 'new']];
     opts.forEach(([label, act], i) => {
       const y = h * 0.56 + i * 56 * u;
@@ -114,8 +120,8 @@ class EndScene extends Phaser.Scene {
     const w = this.scale.width, h = this.scale.height, u = h / 360;
     this.cameras.main.setBackgroundColor('#0b1018');
     this.cameras.main.fadeIn(900, 230, 245, 255);
-    this.add.text(w / 2, h * 0.34, 'Izašao si…', { fontFamily: FONT, fontSize: Math.round(40 * u) + 'px', color: '#e9dfc6' }).setOrigin(0.5);
-    this.add.text(w / 2, h * 0.34 + 46 * u, '…ali podzemlje ide još dublje.\nKraj prve zone.', { fontFamily: FONT, fontStyle: 'italic', align: 'center', fontSize: Math.round(17 * u) + 'px', color: '#9fb3c8' }).setOrigin(0.5);
+    this.add.text(w / 2, h * 0.34, 'Vidiš nebo.', { fontFamily: FONT, fontSize: Math.round(40 * u) + 'px', color: '#e9dfc6' }).setOrigin(0.5);
+    this.add.text(w / 2, h * 0.34 + 46 * u, 'Prošao si sve četiri zone podzemlja.\nTihi je ostao dolje… zasad.', { fontFamily: FONT, fontStyle: 'italic', align: 'center', fontSize: Math.round(17 * u) + 'px', color: '#9fb3c8' }).setOrigin(0.5);
     const r = this.add.rectangle(w / 2, h * 0.74, 240 * u, 44 * u, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, 0.55);
     this.add.text(w / 2, h * 0.74, 'Izbornik', { fontFamily: FONT, fontSize: Math.round(20 * u) + 'px', color: '#e9dfc6' }).setOrigin(0.5);
     this.input.on('pointerup', (p) => { if (r.getBounds().contains(p.x, p.y)) { SFX.click(); this.scene.start('Title'); } });

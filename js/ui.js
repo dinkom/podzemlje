@@ -233,6 +233,13 @@ class UIScene extends Phaser.Scene {
   }
 
   // ---------------- poruke i prozori ----------------
+  zoneCard(n, name) {
+    const w = this.scale.width, h = this.scale.height, u = this.u;
+    const a = this.add.text(w / 2, h * 0.36, 'ZONA ' + n, { fontFamily: FONT, fontSize: Math.round(16 * u) + 'px', color: '#9fb3c8', letterSpacing: 6 * u }).setOrigin(0.5).setAlpha(0);
+    const b = this.add.text(w / 2, h * 0.36 + 34 * u, name, { fontFamily: FONT, fontSize: Math.round(36 * u) + 'px', color: '#e9dfc6', stroke: '#000', strokeThickness: 5 * u }).setOrigin(0.5).setAlpha(0);
+    this.tweens.add({ targets: [a, b], alpha: 1, duration: 900, delay: 300, yoyo: true, hold: 1800, onComplete: () => { a.destroy(); b.destroy(); } });
+  }
+
   toast(msg, ms = 1600) {
     const t = this.toastText;
     this.tweens.killTweensOf(t);

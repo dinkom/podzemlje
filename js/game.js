@@ -6,7 +6,7 @@ const Save = {
   load() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return null; } },
   store(s) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch (e) {} },
   clear() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} },
-  fresh() { return { cp: null, hasKey: false, doorOpen: false, taken: [] }; },
+  fresh(level = 0) { return { level, cp: null, hasKey: false, doorOpen: false, taken: [] }; },
 };
 
 // stanje kontrola dijele UI scena (touch) i tipkovnica
@@ -23,8 +23,13 @@ class GameScene extends Phaser.Scene {
 
   create() {
     Controls.reset();
-    const L = this.L = Level.build();
     this.save = Save.load() || Save.fresh();
+    this.levelIndex = Math.min(this.save.level || 0, Level.count - 1);
+    const L = this.L = Level.build(this.levelIndex);
+    const T = this.T = THEMES[L.theme];
+    Tiles.ensureTheme(this, T);
+    SFX.setTheme(T.drone);
+    this.lightsOff = false;
     const taken = new Set(this.save.taken);
     this.taken = new Set(this.save.taken);
     this.hasKey = this.save.hasKey;
@@ -33,15 +38,15 @@ class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
 
     // pozadine
-    this.bgFar = this.add.tileSprite(0, 0, 10, 10, 'bgFar').setOrigin(0).setScrollFactor(0).setDepth(0);
-    this.bgMid = this.add.tileSprite(0, 0, 10, 10, 'bgMid').setOrigin(0).setScrollFactor(0).setDepth(1);
+    this.bgFar = this.add.tileSprite(0, 0, 10, 10, 'bgFar_' + T.id).setOrigin(0).setScrollFactor(0).setDepth(0);
+    this.bgMid = this.add.tileSprite(0, 0, 10, 10, 'bgMid_' + T.id).setOrigin(0).setScrollFactor(0).setDepth(1);
 
     // razina
     this.mushGlows = Level.addVisuals(this, L);
     this.layer = Level.addCollision(this, L);
 
     // predmeti
-    this.items = []; this.cabinets = []; this.notes = []; this.checkpoints = []; this.crawlers = [];
+    this.items = []; this.cabinets = []; this.notes = []; this.checkpoints = []; this.crawlers = []; this.bats = [];
     for (const o of L.objects) {
       if (o.type === 'cabinet') {
         const s = this.add.image(o.x, o.y, 'ormar').setOrigin(0.5, 1).setScale(1 / RES).setDepth(9);
@@ -62,6 +67,8 @@ class GameScene extends Phaser.Scene {
         this.exit = { ...o, s: this.add.image(o.x, o.y, 'izlaz').setOrigin(0.5, 1).setScale(1 / RES).setDepth(4) };
       } else if (o.type === 'crawler') {
         this.spawnCrawler(o);
+      } else if (o.type === 'bat') {
+        this.spawnBat(o);
       }
     }
     // vrata
@@ -70,7 +77,10 @@ class GameScene extends Phaser.Scene {
     if (this.doorOpen) this.openDoor(true);
 
     // sjaj gljiva iznad mraka
-    this.mushGlows.forEach(m => this.add.image(m.x, m.y, 'glow').setScale(0.35).setTint(m.col).setAlpha(0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(61));
+    this.glowImgs = this.mushGlows.map(m => this.add.image(m.x, m.y, 'glow').setScale(0.35).setTint(m.col).setAlpha(0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(61));
+
+    // voda
+    this.buildWater();
 
     // junak
     const cp = this.checkpoints.find(c => c.id === this.save.cp);
@@ -94,7 +104,7 @@ class GameScene extends Phaser.Scene {
     }).setDepth(17);
     this.spores = this.add.particles(0, 0, 'glow', {
       lifespan: 7000, speedX: { min: -5, max: 5 }, speedY: { min: -9, max: -2 }, scale: { start: 0.12, end: 0.04 },
-      alpha: { start: 0.45, end: 0 }, tint: [0x63e6d6, 0xc08cff, 0x9fd8ff], blendMode: 'ADD', emitting: false,
+      alpha: { start: 0.45, end: 0 }, tint: [T.glow[0], T.glow[1], 0x9fd8ff], blendMode: 'ADD', emitting: false,
     }).setDepth(61);
     this.burst = this.add.particles(0, 0, 'dot', {
       lifespan: 600, speed: { min: 30, max: 110 }, scale: { start: 0.6, end: 0 }, gravityY: 300,
@@ -113,7 +123,7 @@ class GameScene extends Phaser.Scene {
     cam.setBounds(0, 0, this.worldW, this.worldH);
     cam.startFollow(p, true, 0.12, 0.12);
     cam.setFollowOffset(0, 18);
-    cam.setBackgroundColor('#06080d');
+    cam.setBackgroundColor(T.cam);
     this.layout();
     this.scale.on('resize', this.layout, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
@@ -124,7 +134,9 @@ class GameScene extends Phaser.Scene {
     this.dripT = 2; this.heartT = 0; this.time0 = 0;
     this.ui = this.scene.get('UI');
     this.ui.bind(this);
-    if (!this.save.cp) this.time.delayedCall(600, () => this.ui.toast(this.ui.touchMode ? 'Lijevi palac: hodaj.  Desno: skok, udarac, svjetiljka.' : 'A / D: hodaj   ·   W: skok   ·   J: udarac   ·   K: svjetiljka   ·   L: radnja   ·   Esc: pauza', 5500));
+    if (this.save.hasKey && L.lightsOut) this.applyLightsOut(true);
+    if (!this.save.cp) this.ui.zoneCard(this.levelIndex + 1, L.name);
+    if (!this.save.cp && this.levelIndex === 0) this.time.delayedCall(3200, () => this.ui.toast(this.ui.touchMode ? 'Lijevi palac: hodaj.  Desno: skok, udarac, svjetiljka.' : 'A / D: hodaj   ·   W: skok   ·   J: udarac   ·   K: svjetiljka   ·   L: radnja   ·   Esc: pauza', 5500));
     this.cameras.main.fadeIn(600, 0, 0, 0);
   }
 
@@ -152,6 +164,91 @@ class GameScene extends Phaser.Scene {
     this.physics.add.collider(s, this.layer);
     const eyes = this.add.image(0, 0, 'oci_buba').setScale(1 / RES).setDepth(61).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.55);
     this.crawlers.push({ id: o.id, s, eyes, dir: Math.random() < 0.5 ? -1 : 1, hp: 2, hurtT: 0, alive: true });
+  }
+
+  spawnBat(o) {
+    const y = o.y - 12;
+    const s = this.add.sprite(o.x, y, 'bat', 'hang0').setScale(1 / RES).setDepth(13);
+    s.play('bat-hang');
+    const eyes = this.add.image(o.x, y, 'oci_bat').setScale(1 / RES).setDepth(61).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+    this.bats.push({ id: o.id, s, eyes, x: o.x, y, rx: o.x, ry: y, state: 'sleep', t: 0, cd: 0, flapT: 0, alive: true, ph: Math.random() * 6 });
+  }
+
+  updateBat(bt, dt) {
+    if (!bt.alive) return;
+    const st = this.st, p = this.player;
+    const dx = p.x - bt.x, dy = (p.y - 4) - bt.y, d = Math.hypot(dx, dy);
+    const can = !st.hidden && !st.dead;
+    bt.cd = Math.max(0, bt.cd - dt);
+    if (bt.state === 'sleep') {
+      if (can && bt.cd <= 0 && ((st.flash && d < 190) || d < 60)) this.wakeBat(bt);
+    } else if (bt.state === 'swoop') {
+      bt.t -= dt;
+      if (!can || bt.t <= 0) bt.state = 'return';
+      else {
+        const sp = 92;
+        bt.x += dx / (d || 1) * sp * dt;
+        bt.y += dy / (d || 1) * sp * dt + Math.sin(this.time.now / 110 + bt.ph) * 40 * dt;
+        if (d < 11 && st.invul <= 0) { this.hurt(Math.sign(dx) || 1); bt.state = 'return'; }
+      }
+    } else if (bt.state === 'return') {
+      const rx = bt.rx - bt.x, ry = bt.ry - bt.y, rd = Math.hypot(rx, ry);
+      if (rd < 3) { bt.state = 'sleep'; bt.x = bt.rx; bt.y = bt.ry; bt.cd = 2.5; bt.s.play('bat-hang'); }
+      else { bt.x += rx / rd * 70 * dt; bt.y += ry / rd * 70 * dt; }
+    }
+    const awake = bt.state !== 'sleep';
+    if (awake) {
+      bt.flapT -= dt;
+      if (bt.flapT <= 0) { bt.flapT = 0.22; SFX.flap(Phaser.Math.Clamp(0.07 - d / 4000, 0, 0.07), Phaser.Math.Clamp(-dx / 300, -1, 1)); }
+    }
+    bt.s.setPosition(bt.x, bt.y).setFlipX(awake && dx < 0);
+    bt.eyes.setVisible(awake).setPosition(bt.x, bt.y - 1.8);
+  }
+
+  wakeBat(bt) {
+    if (bt.state !== 'sleep') return;
+    bt.state = 'swoop'; bt.t = 5; bt.s.play('bat-fly');
+    SFX.batWake(Phaser.Math.Clamp((bt.x - this.player.x) / 300, -1, 1));
+  }
+
+  killBat(bt) {
+    bt.alive = false; SFX.bugDie(); Buzz(20);
+    this.burst.emitParticleAt(bt.x, bt.y, 12);
+    bt.s.destroy(); bt.eyes.destroy();
+  }
+
+  buildWater() {
+    const g = this.L.grid;
+    this.waterRuns = [];
+    for (let y = 0; y < this.L.H; y++) {
+      let x0 = -1;
+      for (let x = 0; x <= this.L.W; x++) {
+        const w = x < this.L.W && g[y][x] === '~';
+        if (w && x0 < 0) x0 = x;
+        if (!w && x0 >= 0) { this.waterRuns.push({ x: x0 * TILE, y: y * TILE + 8, w: (x - x0) * TILE, h: TILE - 8 }); x0 = -1; }
+      }
+    }
+    if (!this.waterRuns.length) return;
+    const body = this.add.graphics().setDepth(16);
+    this.waterRuns.forEach(r => {
+      body.fillStyle(0x1d7f99, 0.42); body.fillRect(r.x, r.y, r.w, r.h);
+      body.fillStyle(0x0b3a4a, 0.35); body.fillRect(r.x, r.y + r.h - 5, r.w, 5);
+    });
+    this.waterSurf = this.add.graphics().setDepth(16);
+  }
+
+  inWater(x, footY) {
+    const cx = Math.floor(x / TILE), cy = Math.floor((footY - 6) / TILE);
+    const row = this.L.grid[cy];
+    return !!row && row[cx] === '~';
+  }
+
+  applyLightsOut(instant) {
+    if (this.lightsOff) return;
+    this.lightsOff = true;
+    if (instant) { this.glowImgs.forEach(g => g.setVisible(false)); return; }
+    SFX.lightsOut(); Buzz([120, 60, 120]);
+    this.glowImgs.forEach((g, i) => this.tweens.add({ targets: g, alpha: 0, delay: (i % 12) * 60, duration: 500 }));
   }
 
   spawnMonster(m) {
@@ -189,6 +286,7 @@ class GameScene extends Phaser.Scene {
     if (!st.dead) this.updatePlayer(dt, K, JD);
     this.monsters.forEach(m => this.updateMonster(m, dt));
     this.crawlers.forEach(c => this.updateCrawler(c, dt));
+    this.bats.forEach(bt => this.updateBat(bt, dt));
     if (!st.dead) this.interactions(dt);
     this.updateFx(dt);
     this.drawDarkness(time);
@@ -235,7 +333,10 @@ class GameScene extends Phaser.Scene {
     // kretanje
     let dir = (right ? 1 : 0) - (left ? 1 : 0);
     if (st.lock > 0) dir = 0;
-    const target = dir * 118;
+    const wet = this.inWater(p.x, this.feet(p));
+    if (wet && !st.wasWet && b.velocity.y > 60) { SFX.splash(0.25); this.noise(p.x, p.y, 160); }
+    st.wasWet = wet;
+    const target = dir * (wet ? 66 : 118);
     if (st.lock <= 0) b.setVelocityX(Phaser.Math.Linear(b.velocity.x, target, Math.min(1, dt * (ground ? 16 : 9))));
     if (dir !== 0 && st.atkT <= 0) st.face = dir;
     p.setFlipX(st.face < 0);
@@ -244,7 +345,7 @@ class GameScene extends Phaser.Scene {
     st.coyote = ground ? 0.1 : Math.max(0, st.coyote - dt);
     st.buffer = jumpP ? 0.13 : Math.max(0, st.buffer - dt);
     if (st.buffer > 0 && st.coyote > 0) {
-      b.setVelocityY(-345); st.buffer = 0; st.coyote = 0; st.jumping = true; SFX.jump();
+      b.setVelocityY(wet ? -300 : -345); st.buffer = 0; st.coyote = 0; st.jumping = true; wet ? SFX.splash(0.2) : SFX.jump();
     }
     if (st.jumping && !jumpH && b.velocity.y < -130) b.setVelocityY(-130);
     if (b.velocity.y >= 0) st.jumping = false;
@@ -256,7 +357,10 @@ class GameScene extends Phaser.Scene {
     // koraci
     if (ground && Math.abs(b.velocity.x) > 40) {
       st.stepT -= dt;
-      if (st.stepT <= 0) { st.stepT = 0.27; SFX.step(); }
+      if (st.stepT <= 0) {
+        if (wet) { st.stepT = 0.36; SFX.splash(); this.noise(p.x, p.y, 150); }
+        else { st.stepT = 0.27; SFX.step(); }
+      }
     } else st.stepT = 0.05;
 
     // udarac
@@ -270,6 +374,7 @@ class GameScene extends Phaser.Scene {
         const r = new Phaser.Geom.Rectangle(c.s.body.x, c.s.body.y, c.s.body.width, c.s.body.height);
         if (Phaser.Geom.Intersects.RectangleToRectangle(hit, r)) this.hitCrawler(c, st.face);
       });
+      this.bats.forEach(bt => { if (bt.alive && bt.state !== 'sleep' && hit.contains(bt.x, bt.y)) this.killBat(bt); });
       this.noise(p.x, p.y, 170);
     }
     this.slash.setVisible(st.atkT > 0);
@@ -288,6 +393,7 @@ class GameScene extends Phaser.Scene {
   }
 
   noise(x, y, r) {
+    this.bats.forEach(bt => { if (bt.alive && Math.hypot(bt.x - x, bt.y - y) < r * 0.6) this.wakeBat(bt); });
     this.monsters.forEach(m => {
       if (!m.active || this.st.hidden) return;
       if (Math.abs(m.s.x - x) < r && Math.abs(this.feet(m.s) - this.feet(this.player)) < 64 && m.state !== 'chase') this.startChase(m);
@@ -351,7 +457,8 @@ class GameScene extends Phaser.Scene {
     if ((s.x <= lo && m.dir < 0) || (s.x >= hi && m.dir > 0)) speed = 0;
     // ne pada u rupe
     if (speed > 0 && b.blocked.down && !this.solidAt(s.x + m.dir * 12, this.feet(s) + 3)) speed = 0;
-    b.setVelocityX(m.dir * speed);
+    const mWet = this.inWater(s.x, this.feet(s));
+    b.setVelocityX(m.dir * speed * (mWet ? 0.7 : 1));
     s.setFlipX(m.dir < 0);
     const anim = speed === 0 ? 'tihi-idle' : m.state === 'chase' ? 'tihi-chase' : 'tihi-walk';
     if (s.anims.currentAnim?.key !== anim) s.play(anim);
@@ -366,7 +473,9 @@ class GameScene extends Phaser.Scene {
       if (m.stepT <= 0) {
         m.stepT = m.state === 'chase' ? 0.3 : 0.62;
         const d = Math.hypot(dx, this.feet(s) - this.feet(p));
-        SFX.stomp(Phaser.Math.Clamp(1 - d / 430, 0, 1) * 0.9, Phaser.Math.Clamp(-dx / 300, -1, 1));
+        const vol = Phaser.Math.Clamp(1 - d / 430, 0, 1) * 0.9;
+        SFX.stomp(vol, Phaser.Math.Clamp(-dx / 300, -1, 1));
+        if (mWet && vol > 0.05) SFX.splash(vol * 0.3);
       }
     }
 
@@ -475,7 +584,7 @@ class GameScene extends Phaser.Scene {
       st.insideCp = cp.id;
       this.checkpoints.forEach(c => c.s.setFrame(c === cp ? 'on' : 'off'));
       st.hp = 3; st.battery = 100;
-      this.save = { cp: cp.id, hasKey: this.hasKey, doorOpen: this.doorOpen, taken: [...this.taken] };
+      this.save = { level: this.levelIndex, cp: cp.id, hasKey: this.hasKey, doorOpen: this.doorOpen, taken: [...this.taken] };
       Save.store(this.save);
       SFX.save(); Buzz(30);
       this.ui.toast('Sigurno mjesto. Igra je spremljena.', 2200);
@@ -484,9 +593,14 @@ class GameScene extends Phaser.Scene {
     // izlaz
     if (this.exit && Math.abs(this.exit.x - p.x) < 14 && Math.abs(this.exit.y - pf) < 10) {
       this.st.dead = true;
+      this.exit = null;
       SFX.win();
       this.cameras.main.fadeOut(1400, 230, 245, 255);
-      this.time.delayedCall(1500, () => { this.scene.stop('UI'); this.scene.start('End'); });
+      const next = this.levelIndex + 1;
+      this.time.delayedCall(1500, () => {
+        if (this.L.last) { Save.store({ ...Save.fresh(next - 1), done: true }); this.scene.stop('UI'); this.scene.start('End'); }
+        else { Save.store(Save.fresh(next)); this.scene.restart(); }
+      });
     }
   }
 
@@ -522,14 +636,15 @@ class GameScene extends Phaser.Scene {
   }
 
   wakeTheSleeper() {
-    const m = this.monsters.find(x => x.dormant && !x.spent);
-    if (!m) return;
-    m.spent = true;
-    this.time.delayedCall(900, () => {
+    if (this.L.lightsOut) this.time.delayedCall(500, () => { this.applyLightsOut(false); this.ui.toast('Sve su se svijeće ugasile…', 2200); });
+    const ms = this.monsters.filter(x => x.dormant && !x.spent);
+    if (!ms.length) return;
+    ms.forEach(m => { m.spent = true; });
+    this.time.delayedCall(this.L.lightsOut ? 1800 : 900, () => {
       SFX.rumble(); Buzz([300, 100, 300]);
       this.cameras.main.shake(1200, 0.006);
-      this.ui.toast('Nešto se probudilo u zidu…', 2400);
-      m.wakeT = 1.4;
+      if (!this.L.lightsOut) this.ui.toast('Nešto se probudilo u zidu…', 2400);
+      ms.forEach(m => { m.wakeT = 1.4; });
     });
   }
 
@@ -546,6 +661,18 @@ class GameScene extends Phaser.Scene {
     // predmeti lebde
     const t = this.time.now / 1000;
     this.items.forEach(it => { if (!it.done) { const y = it.baseY + Math.sin(t * 2 + it.x) * 1.5; it.s.y = y; it.glow.y = y; it.glow.setAlpha(0.35 + Math.sin(t * 3 + it.x) * 0.15); } });
+    // površina vode
+    if (this.waterSurf) {
+      const ws = this.waterSurf; ws.clear();
+      this.waterRuns.forEach(r => {
+        if (r.x > v.right || r.x + r.w < v.x || r.y > v.bottom || r.y < v.y - 20) return;
+        ws.fillStyle(0xa8f4ff, 0.55); ws.fillRect(r.x, r.y - 0.5, r.w, 1);
+        for (let x = r.x + 4; x < r.x + r.w - 4; x += 9) {
+          const o = Math.sin(t * 2.2 + x * 0.21) * 2;
+          ws.fillStyle(0xd8fcff, 0.35 + Math.sin(t * 3 + x) * 0.2); ws.fillRect(x + o, r.y + 1.5, 4, 0.8);
+        }
+      });
+    }
     // junak sakriven — oči u ormaru trepću
     if (this.st.hidden) this.peek.setAlpha(Math.sin(t * 1.7) > 0.93 ? 0 : 0.8);
   }
@@ -559,7 +686,7 @@ class GameScene extends Phaser.Scene {
     c.globalCompositeOperation = 'source-over';
     c.globalAlpha = 1;
     c.clearRect(0, 0, cw, ch);
-    c.fillStyle = 'rgba(2,3,6,0.93)';
+    c.fillStyle = this.T.dark + (this.lightsOff ? Math.min(0.97, this.T.darkA + 0.02) : this.T.darkA) + ')';
     c.fillRect(0, 0, cw, ch);
     c.globalCompositeOperation = 'destination-out';
     const L = (x, y, r, a = 1) => {
@@ -584,7 +711,7 @@ class GameScene extends Phaser.Scene {
     this.checkpoints.forEach(cp => { const on = cp.s.frame.name === 'on'; L(cp.x, cp.y - 34, on ? 95 : 30, on ? 1 : 0.4); });
     if (this.exit) L(this.exit.x, this.exit.y - 18, 85, 1);
     this.items.forEach(it => { if (!it.done && it.type === 'key') L(it.x, it.baseY, 26, 0.7); });
-    this.mushGlows.forEach(m => L(m.x, m.y, 18, 0.45));
+    if (!this.lightsOff) this.mushGlows.forEach(m => L(m.x, m.y, 18, 0.45));
     c.globalCompositeOperation = 'source-over';
     c.globalAlpha = 1;
     tex.refresh();
@@ -594,7 +721,11 @@ class GameScene extends Phaser.Scene {
     const p = this.player, st = this.st;
     // kapanje
     this.dripT -= dt;
-    if (this.dripT <= 0) { this.dripT = 2.5 + Math.random() * 5; SFX.drip(Math.random() * 2 - 1); }
+    if (this.dripT <= 0) {
+      const [a, b] = this.T.drip;
+      this.dripT = a + Math.random() * b;
+      if (this.T.id === 'kosturnica' && Math.random() < 0.25) SFX.bell(); else SFX.drip(Math.random() * 2 - 1);
+    }
     // srce i napetost
     let near = 9999, chasing = false;
     this.monsters.forEach(m => {

@@ -297,6 +297,53 @@ const Art = (() => {
     sheet(scene, 'bug', 24, 14, [{ name: 'c0', step: 1.2, bob: 0 }, { name: 'c1', step: -1.2, bob: -0.3 }], drawBug);
   }
 
+  // ---------------- ŠIŠMIŠ ----------------
+  function drawBat(c, p) {
+    if (p.hang) {
+      // visi naglavačke, umotan u krila
+      line(c, [[12, 0], [12, 2.5]], '#2a2230', 1);
+      line(c, [[10.5, 0.5], [11.3, 2.5]], '#2a2230', 0.8); line(c, [[13.5, 0.5], [12.7, 2.5]], '#2a2230', 0.8);
+      c.beginPath(); c.moveTo(12, 2 + p.b); c.bezierCurveTo(6, 3, 5.5, 11, 12, 14.5 + p.b); c.bezierCurveTo(18.5, 11, 18, 3, 12, 2 + p.b);
+      c.fillStyle = '#4b3d5c'; c.fill(); c.strokeStyle = OUT; c.lineWidth = 0.9; c.stroke();
+      line(c, [[9, 4], [10, 12]], 'rgba(20,14,28,0.6)', 0.5); line(c, [[15, 4], [14, 12]], 'rgba(20,14,28,0.6)', 0.5);
+      ell(c, 12, 13 + p.b, 2.6, 2.1, '#3a2f45', OUT, 0.7);
+      c.fillStyle = '#3a2f45'; c.beginPath(); c.moveTo(10, 14.3 + p.b); c.lineTo(9.6, 16 + p.b); c.lineTo(11, 14.8 + p.b); c.moveTo(14, 14.3 + p.b); c.lineTo(14.4, 16 + p.b); c.lineTo(13, 14.8 + p.b); c.fill();
+      line(c, [[10.8, 12.8 + p.b], [11.6, 12.6 + p.b]], '#1a1420', 0.5); line(c, [[12.4, 12.6 + p.b], [13.2, 12.8 + p.b]], '#1a1420', 0.5);
+      return;
+    }
+    const w = p.w; // položaj krila -1..1
+    const wing = (side) => {
+      const sx = 12 + side * 2.5, tipY = 7 - w * 6;
+      c.beginPath();
+      c.moveTo(sx, 7);
+      c.lineTo(12 + side * 8, tipY - 1);
+      c.lineTo(12 + side * 11.5, tipY + 2);
+      c.quadraticCurveTo(12 + side * 9.5, 9 - w * 2, 12 + side * 8.5, 11 - w * 2.5);
+      c.quadraticCurveTo(12 + side * 6.5, 9.5 - w, 12 + side * 5, 11.5 - w);
+      c.quadraticCurveTo(12 + side * 3.8, 9.6, sx, 10);
+      c.closePath();
+      c.fillStyle = '#5a4a6e'; c.fill(); c.strokeStyle = OUT; c.lineWidth = 0.8; c.stroke();
+      line(c, [[sx, 7.5], [12 + side * 8.5, 11 - w * 2.5]], 'rgba(30,20,40,0.7)', 0.5);
+      line(c, [[sx, 7.5], [12 + side * 11.5, tipY + 2]], 'rgba(30,20,40,0.7)', 0.5);
+    };
+    wing(-1); wing(1);
+    ell(c, 12, 8.5, 3.2, 3.4, '#3d3149', OUT, 0.9);
+    // uši
+    c.fillStyle = '#3d3149';
+    c.beginPath(); c.moveTo(10, 6); c.lineTo(9.6, 2.4); c.lineTo(11.6, 5.4); c.closePath(); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(14, 6); c.lineTo(14.4, 2.4); c.lineTo(12.4, 5.4); c.closePath(); c.fill(); c.stroke();
+    ell(c, 10.9, 7.6, 0.9, 0.9, '#ffd25a', null); ell(c, 13.1, 7.6, 0.9, 0.9, '#ffd25a', null);
+    ell(c, 11, 7.4, 0.3, 0.3, '#fff', null); ell(c, 13.2, 7.4, 0.3, 0.3, '#fff', null);
+    c.fillStyle = '#f2ecd8';
+    c.beginPath(); c.moveTo(11.3, 10); c.lineTo(11.7, 11.3); c.lineTo(12, 10); c.moveTo(12.2, 10); c.lineTo(12.6, 11.3); c.lineTo(12.9, 10); c.fill();
+  }
+  function batFrames(scene) {
+    sheet(scene, 'bat', 24, 17, [
+      { name: 'hang0', hang: true, b: 0 }, { name: 'hang1', hang: true, b: 0.4 },
+      { name: 'fly0', w: 1 }, { name: 'fly1', w: 0 }, { name: 'fly2', w: -0.9 },
+    ], drawBat);
+  }
+
   // ---------------- PREDMETI ----------------
   function objects(scene) {
     // ormar za skrivanje
@@ -419,6 +466,7 @@ const Art = (() => {
     eyes('oci_tihi', 16, 8, [[4, 4], [11.5, 3.6]], 'rgba(255,70,50,1)', 1.3);
     eyes('oci_buba', 10, 6, [[3, 3], [7, 3]], 'rgba(255,150,60,1)', 0.8);
     eyes('oci_junak', 12, 6, [[3.5, 3], [8.5, 3]], 'rgba(150,230,255,1)', 0.8);
+    eyes('oci_bat', 8, 5, [[2.6, 2.5], [5.4, 2.5]], 'rgba(255,210,90,1)', 0.6);
 
     // sitne točkice i sjaj
     sheet(scene, 'dot', 4, 4, ['d'], (c) => { ell(c, 2, 2, 1.6, 1.6, '#fff', null); }, 2);
@@ -483,7 +531,7 @@ const Art = (() => {
 
   return {
     generate(scene) {
-      heroFrames(scene); tihiFrames(scene); bugFrames(scene);
+      heroFrames(scene); tihiFrames(scene); bugFrames(scene); batFrames(scene);
       objects(scene); lights(scene); face(scene);
     },
   };
