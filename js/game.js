@@ -445,8 +445,8 @@ class GameScene extends Phaser.Scene {
       speed = 36;
       if (s.x <= m.minX + 2) m.dir = 1;
       if (s.x >= m.maxX - 2) m.dir = -1;
-      if (b.blocked.left) m.dir = 1;
-      if (b.blocked.right) m.dir = -1;
+      if (b.blocked.down && b.blocked.left && !this.monsterStep(m, -1)) m.dir = 1;
+      if (b.blocked.down && b.blocked.right && !this.monsterStep(m, 1)) m.dir = -1;
     } else if (m.state === 'chase') {
       const tx = Phaser.Math.Clamp(m.lastX, m.cMin, m.cMax);
       m.dir = tx > s.x ? 1 : -1;
@@ -455,8 +455,13 @@ class GameScene extends Phaser.Scene {
     // ne izlazi iz svog područja
     const lo = m.state === 'chase' ? m.cMin : m.minX, hi = m.state === 'chase' ? m.cMax : m.maxX;
     if ((s.x <= lo && m.dir < 0) || (s.x >= hi && m.dir > 0)) speed = 0;
-    // ne pada u rupe
-    if (speed > 0 && b.blocked.down && !this.solidAt(s.x + m.dir * 12, this.feet(s) + 3)) speed = 0;
+    // ne pada u prave rupe (plitka lokva nije rupa — kroz nju gazi)
+    if (speed > 0 && b.blocked.down) {
+      const ax = s.x + m.dir * 12, fy = this.feet(s) + 3;
+      const ground = this.solidAt(ax, fy) || this.solidAt(ax, fy + TILE) || this.solidAt(ax, fy + TILE * 2);
+      if (!ground) { speed = 0; if (m.state === 'patrol') m.dir *= -1; }
+    }
+    if (speed > 0 && m.state === 'chase' && ((m.dir < 0 && b.blocked.left) || (m.dir > 0 && b.blocked.right))) this.monsterStep(m, m.dir);
     const mWet = this.inWater(s.x, this.feet(s));
     b.setVelocityX(m.dir * speed * (mWet ? 0.7 : 1));
     s.setFlipX(m.dir < 0);
@@ -481,6 +486,18 @@ class GameScene extends Phaser.Scene {
 
     // ulovio te
     if (visible && (this.overlap(s, p, 3) || (m.state === 'chase' && same && adx < 30))) this.die('monster');
+  }
+
+  // prekorači rub visok jednu pločicu (npr. izlaz iz lokve)
+  monsterStep(m, dir) {
+    const b = m.s.body;
+    if (!b.blocked.down) return false;
+    const ax = dir > 0 ? b.right + 4 : b.x - 4, fy = this.feet(m.s);
+    const ledge = this.solidAt(ax, fy - 10);
+    const hard = (x, y) => { const t = this.layer.getTileAtWorldXY(x, y); return t && (t.index === 0 || t.index === 2); };
+    const clear = !hard(ax, fy - 10 - TILE) && !hard(ax, fy - 10 - TILE * 2) && !hard(ax, fy - 10 - TILE * 3);
+    if (ledge && clear) { b.setVelocityY(-250); return true; }
+    return false;
   }
 
   updateCrawler(c, dt) {
