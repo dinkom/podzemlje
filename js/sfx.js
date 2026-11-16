@@ -10,7 +10,10 @@ const SFX = (() => {
     ctx = new AC();
     master = ctx.createGain();
     master.gain.value = 0.9;
-    master.connect(ctx.destination);
+    // kompresor da glasniji zvukovi ne pucaju
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 4;
+    master.connect(comp); comp.connect(ctx.destination);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 1.5, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -94,16 +97,16 @@ const SFX = (() => {
       if (!droneNodes || !ok()) return;
       droneNodes.g.gain.setTargetAtTime(0.05 + v * 0.07, now(), 0.4);
     },
-    step(vol = 0.06) { noise({ d: 0.07, vol, f: 900, f2: 300 }); },
-    land() { noise({ d: 0.14, vol: 0.14, f: 600, f2: 120 }); },
-    jump() { noise({ d: 0.12, vol: 0.05, type: 'bandpass', f: 600, f2: 1800, q: 1.2 }); },
-    slash() { noise({ d: 0.09, vol: 0.12, type: 'highpass', f: 1500, f2: 4000 }); tone({ type: 'triangle', f: 700, f2: 300, d: 0.08, vol: 0.04 }); },
-    bugHit() { tone({ type: 'square', f: 220, f2: 90, d: 0.1, vol: 0.06 }); noise({ d: 0.08, vol: 0.1, f: 1400, f2: 300 }); },
-    bugDie() { tone({ type: 'sawtooth', f: 500, f2: 60, d: 0.3, vol: 0.06 }); noise({ d: 0.25, vol: 0.12, f: 2000, f2: 200 }); },
-    hurt() { tone({ type: 'sine', f: 120, f2: 40, d: 0.35, vol: 0.35 }); noise({ d: 0.2, vol: 0.15, f: 500, f2: 100 }); },
-    pickup() { [660, 880, 1320].forEach((f, i) => tone({ type: 'sine', f, d: 0.35, vol: 0.07, delay: i * 0.07 })); },
+    step(vol = 0.1) { noise({ d: 0.07, vol, f: 1000, f2: 300 }); },
+    land() { noise({ d: 0.16, vol: 0.26, f: 700, f2: 120 }); tone({ type: 'sine', f: 110, f2: 55, d: 0.12, vol: 0.12 }); },
+    jump() { noise({ d: 0.13, vol: 0.12, type: 'bandpass', f: 600, f2: 2000, q: 1.2 }); },
+    slash() { noise({ d: 0.11, vol: 0.32, type: 'bandpass', f: 1200, f2: 4500, q: 0.9 }); tone({ type: 'triangle', f: 800, f2: 260, d: 0.1, vol: 0.12 }); },
+    bugHit() { tone({ type: 'square', f: 240, f2: 80, d: 0.12, vol: 0.14 }); noise({ d: 0.1, vol: 0.28, f: 1600, f2: 300 }); tone({ type: 'sine', f: 140, f2: 60, d: 0.1, vol: 0.2 }); },
+    bugDie() { tone({ type: 'sawtooth', f: 520, f2: 60, d: 0.32, vol: 0.14 }); noise({ d: 0.28, vol: 0.3, f: 2200, f2: 200 }); },
+    hurt() { tone({ type: 'sine', f: 130, f2: 40, d: 0.38, vol: 0.5 }); noise({ d: 0.22, vol: 0.3, f: 700, f2: 100 }); },
+    pickup() { [660, 880, 1320].forEach((f, i) => tone({ type: 'sine', f, d: 0.35, vol: 0.13, delay: i * 0.07 })); },
     key() { [523, 659, 784, 1046].forEach((f, i) => tone({ type: 'triangle', f, d: 0.6, vol: 0.06, delay: i * 0.1 })); },
-    click() { tone({ type: 'square', f: 1800, d: 0.02, vol: 0.04 }); },
+    click() { tone({ type: 'square', f: 1800, d: 0.025, vol: 0.08 }); },
     save() { [392, 494, 587].forEach((f, i) => tone({ type: 'sine', f, a: 0.05, d: 1.2, vol: 0.06, delay: i * 0.15 })); },
     page() { noise({ d: 0.25, vol: 0.06, type: 'bandpass', f: 3000, q: 0.5 }); },
     door() { tone({ type: 'sawtooth', f: 80, f2: 50, a: 0.1, d: 1.2, vol: 0.12 }); noise({ a: 0.05, d: 1.0, vol: 0.1, f: 300, f2: 80 }); },

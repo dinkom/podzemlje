@@ -1,5 +1,5 @@
 // Podzemlje — service worker (povećaj VERSION kod svake izmjene datoteka)
-const VERSION = 'podzemlje-v4';
+const VERSION = 'podzemlje-v5';
 const FILES = [
   './', './index.html', './manifest.webmanifest',
   './lib/phaser.min.js',
