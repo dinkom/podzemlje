@@ -264,8 +264,12 @@ class GameScene extends Phaser.Scene {
     if (st.hidden) return;
     const cy = Math.floor((b.bottom - 3) / TILE);
     const row = g[cy]; if (!row) return;
-    for (let cx = Math.floor(b.x / TILE); cx <= Math.floor((b.right - 1) / TILE); cx++) {
+    // pošteno: bode samo kad je sredina lika iznad šiljaka (s malo zalihe na rubovima)
+    const px = this.player.x, cxs = [Math.floor(px / TILE)];
+    for (const cx of cxs) {
       if (row[cx] !== '^') continue;
+      const inCell = px - cx * TILE;
+      if ((row[cx - 1] !== '^' && inCell < 4) || (row[cx + 1] !== '^' && inCell > TILE - 4)) continue;
       if (b.bottom - 3 < cy * TILE + 9) continue; // vrhovi šiljaka u donjem dijelu ćelije
       st.hp--; SFX.hurt(); Buzz(110);
       this.cameras.main.shake(180, 0.008);
@@ -453,7 +457,7 @@ class GameScene extends Phaser.Scene {
     st.wasWet = wet;
     const sneak = Controls.sneak || K.S.isDown;
     st.sneak = sneak && dir !== 0;
-    const target = dir * (wet ? 66 : sneak ? 58 : 118);
+    const target = dir * (wet ? 66 : (sneak && ground) ? 58 : 118);
     if (st.lock <= 0) b.setVelocityX(Phaser.Math.Linear(b.velocity.x, target, Math.min(1, dt * (ground ? 16 : 12))));
     if (dir !== 0 && st.atkT <= 0) st.face = dir;
     p.setFlipX(st.face < 0);

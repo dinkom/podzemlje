@@ -31,7 +31,7 @@ const Level = (() => {
     plat(129, 133, 19); plat(135, 141, 17); plat(144, 150, 17); plat(153, 156, 19);
     // --- novi dio: Trnovita pukotina ---
     carve(163, 10, 291, 20);
-    carve(172, 21, 174, 22); spikes(172, 174, 22);
+    carve(172, 21, 173, 22); spikes(172, 173, 22);
     carve(180, 21, 185, 22); spikes(180, 185, 22); crumble(182, 183, 21);
     carve(192, 21, 198, 22); spikes(192, 198, 22); plat(189, 192, 19); crumble(194, 196, 18); plat(199, 201, 19);
     carve(220, 21, 224, 35);   // spust u duboku špilju
@@ -237,7 +237,7 @@ const Level = (() => {
     spikes(46, 47, 13); spikes(66, 67, 35); spikes(98, 99, 35);
     // --- novi dio: Grobnica ---
     carve(153, 18, 269, 24);
-    spikes(165, 166, 24); spikes(172, 174, 24);
+    spikes(165, 166, 24); spikes(172, 173, 24);
     carve(180, 25, 186, 30); spikes(180, 186, 30); crumble(181, 183, 25); crumble(185, 186, 25);
     carve(229, 25, 233, 31);
     carve(205, 32, 262, 36);
