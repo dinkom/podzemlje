@@ -141,14 +141,14 @@ class GameScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
 
     // tipkovnica (za testiranje na računalu)
-    this.keys = this.input.keyboard.addKeys('A,D,W,S,SPACE,J,K,L,ESC');
+    this.keys = this.input.keyboard.addKeys('A,D,W,S,I,SPACE,J,K,L,ESC');
 
     this.dripT = 2; this.heartT = 0; this.time0 = 0;
     this.ui = this.scene.get('UI');
     this.ui.bind(this);
     if (L.lightsOutKey && taken.has(L.lightsOutKey)) this.applyLightsOut(true);
     if (!this.save.cp) this.ui.zoneCard(this.levelIndex + 1, L.name);
-    if (!this.save.cp && this.levelIndex === 0) this.time.delayedCall(3200, () => this.ui.toast(this.ui.touchMode ? 'Lijevi palac: hodaj (malo pomakni = šuljaj se tiho).  Desno: skok, udarac, svjetiljka.' : 'A / D: hodaj (drži S za šuljanje)   ·   W: skok   ·   J: udarac   ·   K: svjetiljka   ·   L: radnja   ·   Esc: pauza', 5500));
+    if (!this.save.cp && this.levelIndex === 0) this.time.delayedCall(3200, () => this.ui.toast(this.ui.touchMode ? 'Lijevi palac: hodaj (malo pomakni = šuljaj se tiho).  Desno: skok, udarac, svjetiljka.' : 'A / D: hodaj (drži S za šuljanje)   ·   W / I: skok   ·   J: udarac   ·   K: svjetiljka   ·   L: radnja   ·   Esc: pauza', 5500));
     this.cameras.main.fadeIn(600, 0, 0, 0);
   }
 
@@ -419,8 +419,8 @@ class GameScene extends Phaser.Scene {
     const ground = b.blocked.down || b.touching.down;
     const left = Controls.left || K.A.isDown;
     const right = Controls.right || K.D.isDown;
-    const jumpP = Controls.take('jump') | JD(K.W) | JD(K.SPACE);
-    const jumpH = Controls.jumpHeld || K.W.isDown || K.SPACE.isDown;
+    const jumpP = Controls.take('jump') | JD(K.W) | JD(K.I) | JD(K.SPACE);
+    const jumpH = Controls.jumpHeld || K.W.isDown || K.I.isDown || K.SPACE.isDown;
     const atkP = Controls.take('attack') | JD(K.J);
     const flashP = Controls.take('flash') | JD(K.K);
     const ctxP = Controls.take('context') | JD(K.L);
