@@ -494,7 +494,6 @@ const Tiles = (() => {
           const pg = c.createLinearGradient(p.x - p.w, 0, p.x + p.w, 0);
           pg.addColorStop(0, '#1a2534'); pg.addColorStop(0.4, '#243246'); pg.addColorStop(1, '#141c28');
           c.fillStyle = pg; c.beginPath(); c.moveTo(p.x - p.w * 1.6, 0); c.quadraticCurveTo(p.x - p.w * 0.6, 140, p.x - p.w * 1.4, 280); c.lineTo(p.x + p.w * 1.3, 280); c.quadraticCurveTo(p.x + p.w * 0.5, 140, p.x + p.w * 1.5, 0); c.closePath(); c.fill();
-          c.fillStyle = 'rgba(70,120,90,0.35)'; c.fillRect(p.x - p.w, 120, p.w * 1.6, 3);
         });
         roots.forEach(r => { c.strokeStyle = '#2a2219'; c.lineWidth = 2; c.beginPath(); c.moveTo(r.x, 0); c.bezierCurveTo(r.x + 10, r.h * 0.3, r.x - 10, r.h * 0.6, r.x + 4, r.h); c.stroke(); });
       });
