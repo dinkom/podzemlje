@@ -113,6 +113,9 @@ const SFX = (() => {
     crack(pan = 0) { noise({ d: 0.12, vol: 0.12, type: 'highpass', f: 2500, pan }); tone({ type: 'square', f: 1800, f2: 900, d: 0.05, vol: 0.04, pan }); },
     shatter(vol = 0.25, pan = 0) { for (let i = 0; i < 4; i++) tone({ type: 'sine', f: 2200 + Math.random() * 2500, f2: 1500, d: 0.15, vol: vol * 0.15, pan, delay: i * 0.03 }); noise({ d: 0.25, vol, type: 'highpass', f: 3000, pan }); },
     wallGrowl() { tone({ type: 'sawtooth', f: 46, f2: 38, a: 0.2, d: 1.6, vol: 0.18 }); noise({ a: 0.3, d: 1.5, vol: 0.18, f: 300, f2: 80 }); },
+    hoot(delay = 0) {
+      [0, 0.55].forEach((d, i) => tone({ type: 'sine', f: i ? 330 : 370, f2: i ? 300 : 340, a: 0.06, d: 0.45, vol: 0.12, delay: delay + d }));
+    },
     bell() { [196, 392.5, 588].forEach((f, i) => tone({ type: 'sine', f, a: 0.01, d: 3, vol: 0.04 / (i + 1) })); },
     lightsOut() { noise({ a: 0.05, d: 1.2, vol: 0.25, type: 'lowpass', f: 900, f2: 100 }); tone({ type: 'sine', f: 220, f2: 55, a: 0.02, d: 1.6, vol: 0.2 }); },
     tension(v) { // 0..1 — pojačava dron kad je čudovište blizu

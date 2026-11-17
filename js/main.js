@@ -1,4 +1,4 @@
-// Podzemlje — pokretanje, naslovni ekran, kraj
+// Noćnik — pokretanje, naslovni ekran, prijelazi između svjetova, kraj
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
 class BootScene extends Phaser.Scene {
@@ -58,7 +58,7 @@ class TitleScene extends Phaser.Scene {
       if (!this.ready) return;
       SFX.init();
       const n = this.buttons.length;
-      const grid = this.mode === 'zones' ? 4 : 1;
+      const grid = this.mode === 'zones' ? 4 : this.mode === 'worlds' ? 3 : 1;
       if (e.code === 'ArrowUp' || e.code === 'KeyW') this.sel = Math.max(0, this.sel - grid);
       else if (e.code === 'ArrowDown' || e.code === 'KeyS') this.sel = Math.min(n - 1, this.sel + grid);
       else if (grid > 1 && (e.code === 'ArrowLeft' || e.code === 'KeyA')) this.sel = Math.max(0, this.sel - 1);
@@ -74,8 +74,9 @@ class TitleScene extends Phaser.Scene {
     if (this.starting) return;
     SFX.init(); SFX.click();
     if (act === 'askNew') { this.mode = 'confirm'; this.sel = 1; this.build(); return; }
-    if (act === 'back') { this.mode = 'main'; this.sel = 0; this.build(); return; }
-    if (act === 'zones') { this.mode = 'zones'; this.sel = 0; this.build(); return; }
+    if (act === 'back') { this.mode = this.mode === 'zones' ? 'worlds' : 'main'; this.sel = 0; this.build(); return; }
+    if (act === 'worlds') { this.mode = 'worlds'; this.sel = 0; this.build(); return; }
+    if (act.startsWith('world:')) { this.world = +act.slice(6); this.mode = 'zones'; this.sel = 0; this.build(); return; }
     if (act === 'locked') return;
     if (act === 'install') {
       if (!installEvt) return;
@@ -115,44 +116,62 @@ class TitleScene extends Phaser.Scene {
     const eyes = this.add.image(tihi.x - 9 * u * 2.0, tihi.y - 30 * u * 2.0, 'oci_tihi').setScale(u * 2.0 / RES).setFlipX(true).setBlendMode(Phaser.BlendModes.ADD);
     this.eyes = eyes;
     c.add([hero, tihi, eyes]);
-    const title = this.add.text(w / 2, h * 0.26, 'PODZEMLJE', { fontFamily: FONT, fontSize: Math.round(54 * u) + 'px', color: '#e9dfc6', letterSpacing: 10 * u, stroke: '#000', strokeThickness: 6 * u }).setOrigin(0.5);
+    const title = this.add.text(w / 2, h * 0.26, 'NOĆNIK', { fontFamily: FONT, fontSize: Math.round(58 * u) + 'px', color: '#e9dfc6', letterSpacing: 12 * u, stroke: '#000', strokeThickness: 6 * u }).setOrigin(0.5);
     const sv = Save.load() || {};
     const prog = Progress.load();
+    const W = Level.worlds;
     const zi = Math.min(sv.level || 0, Level.count - 1);
     const has = !sv.done && !!(sv.cp || (sv.level || 0) > 0);
     const canPick = prog.max > 0 || prog.done || Dev.on;
-    let subTxt = has ? `zona ${zi + 1} · ${THEMES[Level.build(zi).theme].name}` : prog.done ? 'sve zone prijeđene' : 'sedam zona tame';
+    const zoneLabel = (i) => { const wi = Level.worldOf(i); return `${W[wi].name} · zona ${W[wi].zones.indexOf(i) + 1}`; };
+    let subTxt = has ? `${zoneLabel(zi)} · ${THEMES[Level.build(zi).theme].name}` : prog.worldsDone > 0 ? `${W[prog.worldsDone - 1].name} prijeđeno` : 'tri svijeta tame';
     let opts;
     this.buttons = [];
+    const box = (x, y, bw, bh, l1, l2, act, open) => {
+      const r = this.add.rectangle(x, y, bw, bh, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, open ? 0.55 : 0.15);
+      const t = this.add.text(x, y - 8 * u, l1, { fontFamily: FONT, fontSize: Math.round(13 * u) + 'px', color: open ? '#9fb3c8' : '#4a525c' }).setOrigin(0.5);
+      const t2 = this.add.text(x, y + 9 * u, l2, { fontFamily: FONT, fontStyle: open ? 'normal' : 'italic', fontSize: Math.round(15 * u) + 'px', color: open ? '#e9dfc6' : '#4a525c' }).setOrigin(0.5);
+      c.add([r, t, t2]);
+      this.buttons.push({ r, act: open ? act : 'locked' });
+    };
+    const backBtn = (y) => {
+      const r = this.add.rectangle(w / 2, y, 200 * u, 40 * u, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, 0.55);
+      c.add([r, this.add.text(w / 2, y, 'Natrag', { fontFamily: FONT, fontSize: Math.round(17 * u) + 'px', color: '#e9dfc6' }).setOrigin(0.5)]);
+      this.buttons.push({ r, act: 'back' });
+    };
     if (this.mode === 'confirm') {
       subTxt = 'Nova igra kreće od prve zone. Otključane zone ostaju.';
       opts = [['Da, kreni ispočetka', 'new'], ['Ne, natrag', 'back']];
-    } else if (this.mode === 'zones') {
-      subTxt = 'Odaberi zonu';
+    } else if (this.mode === 'worlds') {
+      subTxt = 'Odaberi svijet';
       opts = null;
-      for (let i = 0; i < Level.count; i++) {
+      const cw = Math.min(210 * u, (w - 30 * u) / 3);
+      W.forEach((wd, k) => {
+        const ready = wd.zones.length > 0;
+        const open = ready && (k === 0 || prog.worldsDone >= k || Dev.on);
+        box(w / 2 + (k - 1) * cw, h * 0.52, cw - 14 * u, 64 * u, `svijet ${k + 1}`, ready ? (open ? wd.name : 'zaključano') : `${wd.name} — uskoro`, 'world:' + k, open);
+      });
+      backBtn(h * 0.52 + 76 * u);
+    } else if (this.mode === 'zones') {
+      const wd = W[this.world || 0];
+      subTxt = `${wd.name} · odaberi zonu`;
+      opts = null;
+      wd.zones.forEach((i, n) => {
         const open = i <= prog.max || prog.done || Dev.on;
-        const col = i % 4, row = Math.floor(i / 4);
+        const col = n % 4, row = Math.floor(n / 4);
         const cw = Math.min(168 * u, (w - 30 * u) / 4);
-        const x = w / 2 + (col - 1.5) * cw, y = h * 0.5 + row * 62 * u;
-        const r = this.add.rectangle(x, y, cw - 12 * u, 50 * u, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, open ? 0.55 : 0.15);
-        const t = this.add.text(x, y - 7 * u, `${i + 1}`, { fontFamily: FONT, fontSize: Math.round(13 * u) + 'px', color: open ? '#9fb3c8' : '#4a525c' }).setOrigin(0.5);
-        const t2 = this.add.text(x, y + 9 * u, open ? THEMES[Level.build(i).theme].name : 'zaključano', { fontFamily: FONT, fontStyle: open ? 'normal' : 'italic', fontSize: Math.round(14 * u) + 'px', color: open ? '#e9dfc6' : '#4a525c' }).setOrigin(0.5);
-        c.add([r, t, t2]);
-        this.buttons.push({ r, act: open ? 'zone:' + i : 'locked' });
-      }
-      const r = this.add.rectangle(w / 2, h * 0.5 + 2 * 62 * u, 200 * u, 40 * u, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, 0.55);
-      c.add([r, this.add.text(w / 2, h * 0.5 + 2 * 62 * u, 'Natrag', { fontFamily: FONT, fontSize: Math.round(17 * u) + 'px', color: '#e9dfc6' }).setOrigin(0.5)]);
-      this.buttons.push({ r, act: 'back' });
+        box(w / 2 + (col - 1.5) * cw, h * 0.5 + row * 62 * u, cw - 12 * u, 50 * u, `${n + 1}`, open ? THEMES[Level.build(i).theme].name : 'zaključano', 'zone:' + i, open);
+      });
+      backBtn(h * 0.5 + 2 * 62 * u);
     } else {
       opts = [];
       if (has) opts.push(['Nastavi', 'continue']);
-      if (canPick) opts.push(['Odaberi zonu', 'zones']);
+      if (canPick) opts.push(['Odaberi svijet', 'worlds']);
       if (has) opts.push(['Nova igra', 'askNew']);
-      else opts.push([prog.done ? 'Igraj ponovno' : prog.max > 0 ? 'Nova igra' : 'Igraj', 'new']);
+      else opts.push([prog.worldsDone > 0 ? 'Igraj ponovno' : prog.max > 0 ? 'Nova igra' : 'Igraj', 'new']);
       if (installEvt && !isStandalone()) opts.push(['Instaliraj igru', 'install']);
     }
-    const sub = this.add.text(w / 2, h * 0.26 + 44 * u, subTxt, { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(15 * u) + 'px', color: this.mode === 'confirm' ? '#f0c08a' : '#9fb3c8' }).setOrigin(0.5);
+    const sub = this.add.text(w / 2, h * 0.26 + 46 * u, subTxt, { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(15 * u) + 'px', color: this.mode === 'confirm' ? '#f0c08a' : '#9fb3c8' }).setOrigin(0.5);
     c.add([title, sub]);
     if (opts) opts.forEach(([label, act], i) => {
       const y = h * 0.52 + i * 52 * u;
@@ -295,6 +314,170 @@ class EndScene extends Phaser.Scene {
 }
 
 // Instalacija kao aplikacija: Chrome javi kad je moguća, a mi pokažemo svoj gumb u izborniku
+// Prijelaz nakon zadnje zone svijeta (Podzemlje → Šuma …)
+class TransitionScene extends Phaser.Scene {
+  constructor() { super('Transition'); }
+  create(data) {
+    this.world = data && data.world || 0;
+    const w = this.scale.width, h = this.scale.height, u = this.u = h / 360;
+    this.finished = false; this.phase = 1;
+    this.cameras.main.setBackgroundColor('#03050a');
+    SFX.init();
+    this.makeSky(w, h);
+    // ---- 1. dio: izlaz iz špilje u noć ----
+    this.p1 = this.add.container(0, 0);
+    const sky = this.add.image(0, 0, 'tr_sky').setOrigin(0);
+    const moon = this.add.image(w * 0.8, h * 0.3, 'tr_moon').setScale(h * 0.32 / 256);
+    const glow = this.add.image(moon.x, moon.y, 'end_glowtex').setBlendMode(Phaser.BlendModes.ADD).setScale(h / 256 * 0.9).setAlpha(0.35).setTint(0xbcd4ff);
+    const cave = this.add.image(0, 0, 'tr_cave').setOrigin(0);
+    this.p1.add([sky, glow, moon, cave]);
+    const groundY = h * 0.78, hs = u * 2.6 / RES;
+    const hero = this.add.sprite(-30 * u, groundY - 15 * hs * RES, 'hero', 'run0').setScale(hs).play('hero-run');
+    this.p1.add(hero);
+    const steps = this.time.addEvent({ delay: 270, loop: true, callback: () => SFX.step(0.07) });
+    this.tweens.add({
+      targets: hero, x: w * 0.6, duration: 3000,
+      onComplete: () => {
+        steps.remove(); hero.anims.stop(); hero.setFrame('idle0');
+        this.time.delayedCall(600, () => { SFX.click(); hero.setFrame('dark'); });
+        this.time.delayedCall(1300, () => {
+          hero.play('hero-fly'); SFX.win();
+          this.tweens.add({ targets: hero, x: w * 0.95, y: h * 0.12, scale: hs * 0.5, duration: 2200, ease: 'Sine.easeIn' });
+          this.time.delayedCall(2000, () => this.phase2());
+        });
+      },
+    });
+    const skip = () => { if (!this.finished && this.time.now - this.t0 > 800) this.finish(); };
+    this.t0 = this.time.now;
+    this.input.on('pointerup', (p) => { if (this.finished) this.tapBtn(p); else skip(); });
+    this.input.keyboard.on('keydown', (e) => {
+      if (!this.finished) { skip(); return; }
+      if (e.code === 'Enter' || e.code === 'Space') this.choose(this.btns[0].act);
+    });
+  }
+
+  makeSky(w, h) {
+    ['tr_sky', 'tr_cave', 'tr_moon', 'tr_forest', 'end_glowtex'].forEach(k => { if (this.textures.exists(k)) this.textures.remove(k); });
+    const R = Tiles.rng(7);
+    let t = this.textures.createCanvas('tr_sky', w, h), c = t.getContext();
+    let g = c.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#060b1c'); g.addColorStop(0.6, '#16264a'); g.addColorStop(1, '#2a3c60');
+    c.fillStyle = g; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 160; i++) { c.fillStyle = `rgba(255,255,255,${0.3 + R() * 0.7})`; const r = R() < 0.9 ? 0.6 : 1.3; c.beginPath(); c.arc(R() * w, R() * h * 0.75, r * (h / 360), 0, Math.PI * 2); c.fill(); }
+    t.refresh();
+    t = this.textures.createCanvas('tr_moon', 256, 256); c = t.getContext();
+    g = c.createRadialGradient(110, 100, 10, 128, 128, 120);
+    g.addColorStop(0, '#fffdf0'); g.addColorStop(0.7, '#ece6c8'); g.addColorStop(1, '#cfc7a2');
+    c.fillStyle = g; c.beginPath(); c.arc(128, 128, 118, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(160,150,120,0.35)';
+    [[90, 90, 18], [160, 120, 26], [120, 175, 14], [175, 70, 10], [70, 150, 9]].forEach(([x, y, r]) => { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); });
+    t.refresh();
+    t = this.textures.createCanvas('end_glowtex', 256, 256); c = t.getContext();
+    g = c.createRadialGradient(128, 128, 0, 128, 128, 128); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = g; c.fillRect(0, 0, 256, 256); t.refresh();
+    // špilja s otvorom prema noćnom nebu
+    t = this.textures.createCanvas('tr_cave', w, h); c = t.getContext();
+    c.fillStyle = '#06070b'; c.fillRect(0, 0, w, h);
+    g = c.createLinearGradient(0, 0, w * 0.6, 0); g.addColorStop(0, '#05070b'); g.addColorStop(1, '#101828');
+    c.fillStyle = g; c.fillRect(0, h * 0.15, w * 0.6, h * 0.63);
+    c.globalCompositeOperation = 'destination-out';
+    c.beginPath(); c.moveTo(w * 0.62, h * 0.82);
+    const pts = [[0.6, 0.6], [0.62, 0.38], [0.66, 0.2], [0.74, 0.1], [0.86, 0.06], [1.02, 0.04], [1.02, 0.9], [0.8, 0.88]];
+    pts.forEach(([x, y]) => c.lineTo(w * x + (R() - 0.5) * 10, h * y + (R() - 0.5) * 10));
+    c.closePath(); c.fill();
+    c.globalCompositeOperation = 'source-over';
+    c.fillStyle = '#06070b';
+    c.beginPath(); c.moveTo(0, h); c.lineTo(0, h * 0.78);
+    for (let x = 0; x <= w * 0.7; x += w / 30) c.lineTo(x, h * 0.78 + R() * h * 0.012);
+    c.lineTo(w * 0.78, h * 0.9); c.lineTo(w * 0.84, h); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(170,200,255,0.18)'; c.fillRect(w * 0.42, h * 0.778, w * 0.27, 2);
+    for (let i = 0; i < 8; i++) { const x = w * (0.04 + i * 0.07), hh = h * (0.05 + R() * 0.1); c.beginPath(); c.moveTo(x - 10, h * 0.14); c.lineTo(x + 10, h * 0.14); c.lineTo(x, h * 0.14 + hh); c.closePath(); c.fill(); }
+    t.refresh();
+    // šuma: slojevi silueta borova
+    t = this.textures.createCanvas('tr_forest', w, h); c = t.getContext();
+    const layer = (base, tall, col, step) => {
+      c.fillStyle = col; c.beginPath(); c.moveTo(0, h);
+      for (let x = -step; x <= w + step; x += step) {
+        const th = tall * (0.6 + R() * 0.6), bw = step * (0.6 + R() * 0.3);
+        c.lineTo(x - bw, base); c.lineTo(x - bw * 0.55, base - th * 0.45); c.lineTo(x - bw * 0.7, base - th * 0.45);
+        c.lineTo(x - bw * 0.3, base - th * 0.75); c.lineTo(x - bw * 0.45, base - th * 0.75); c.lineTo(x, base - th);
+        c.lineTo(x + bw * 0.45, base - th * 0.75); c.lineTo(x + bw * 0.3, base - th * 0.75); c.lineTo(x + bw * 0.7, base - th * 0.45);
+        c.lineTo(x + bw * 0.55, base - th * 0.45); c.lineTo(x + bw, base);
+      }
+      c.lineTo(w, h); c.closePath(); c.fill();
+    };
+    layer(h * 0.78, h * 0.28, '#132040', w / 14);
+    const mist = c.createLinearGradient(0, h * 0.7, 0, h * 0.85); mist.addColorStop(0, 'rgba(150,170,210,0)'); mist.addColorStop(1, 'rgba(150,170,210,0.18)');
+    c.fillStyle = mist; c.fillRect(0, h * 0.7, w, h * 0.15);
+    layer(h * 0.88, h * 0.36, '#0a1328', w / 10);
+    layer(h * 1.0, h * 0.42, '#040810', w / 7);
+    t.refresh();
+  }
+
+  // ---- 2. dio: let preko mjeseca do ruba šume ----
+  phase2() {
+    if (this.finished || this.phase !== 1) return;
+    this.phase = 2;
+    const w = this.scale.width, h = this.scale.height, u = this.u;
+    this.cameras.main.fadeOut(400, 3, 5, 10);
+    this.time.delayedCall(420, () => {
+      if (this.finished) return;
+      this.p1.destroy(true);
+      this.add.image(0, 0, 'tr_sky').setOrigin(0);
+      const mx = w * 0.6, my = h * 0.36, mr = h * 0.26;
+      this.add.image(mx, my, 'end_glowtex').setBlendMode(Phaser.BlendModes.ADD).setScale(h / 256 * 1.6).setAlpha(0.3).setTint(0xbcd4ff);
+      this.add.image(mx, my, 'tr_moon').setScale(mr * 2 / 236);
+      this.add.image(0, 0, 'tr_forest').setOrigin(0);
+      this.flies = this.add.particles(0, 0, 'glow', {
+        lifespan: 2500, speedX: { min: -8, max: 8 }, speedY: { min: -10, max: 4 }, scale: { start: 0.12 * u, end: 0 },
+        alpha: { start: 0.9, end: 0 }, tint: [0xd8ff7a, 0xfff2a0], blendMode: 'ADD', frequency: 140,
+        emitZone: { type: 'random', source: new Phaser.Geom.Rectangle(0, h * 0.72, w, h * 0.25) },
+      });
+      // moljac kao silueta preleti preko mjeseca
+      const m = this.add.sprite(w * 0.08, h * 0.75, 'hero', 'fly0').setScale(u * 1.6 / RES).setTint(0x0a1020).play('hero-fly');
+      const path = new Phaser.Curves.CubicBezier(new Phaser.Math.Vector2(w * 0.08, h * 0.75), new Phaser.Math.Vector2(w * 0.35, h * 0.1), new Phaser.Math.Vector2(w * 0.7, h * 0.2), new Phaser.Math.Vector2(w * 0.88, h * 0.62));
+      const tw = { t: 0 };
+      this.tweens.add({ targets: tw, t: 1, duration: 4200, ease: 'Sine.easeInOut', onUpdate: () => { const pt = path.getPoint(tw.t); m.setPosition(pt.x, pt.y); m.setFlipX(false); } });
+      this.cameras.main.fadeIn(600, 3, 5, 10);
+      SFX.hoot(1.6);
+      this.time.delayedCall(4300, () => this.finish());
+    });
+  }
+
+  finish() {
+    if (this.finished) return;
+    this.finished = true;
+    if (this.phase === 1) { this.phase = 2; this.p1.destroy(true); this.add.image(0, 0, 'tr_sky').setOrigin(0); this.add.image(this.scale.width * 0.6, this.scale.height * 0.36, 'tr_moon').setScale(this.scale.height * 0.52 / 236); this.add.image(0, 0, 'tr_forest').setOrigin(0); }
+    const w = this.scale.width, h = this.scale.height, u = this.u;
+    const next = Level.worlds[this.world + 1];
+    const shade = this.add.rectangle(0, 0, w, h, 0x000000, 0).setOrigin(0);
+    this.tweens.add({ targets: shade, fillAlpha: 0.45, duration: 800 });
+    const items = [];
+    items.push(this.add.text(w / 2, h * 0.3, `SVIJET ${this.world + 2}`, { fontFamily: FONT, fontSize: Math.round(16 * u) + 'px', color: '#bcd4ff', letterSpacing: 6 * u }).setOrigin(0.5));
+    items.push(this.add.text(w / 2, h * 0.3 + 40 * u, next ? next.name : '', { fontFamily: FONT, fontSize: Math.round(44 * u) + 'px', color: '#f3f0dc', stroke: '#000', strokeThickness: 5 * u }).setOrigin(0.5));
+    const ready = next && next.zones.length > 0;
+    items.push(this.add.text(w / 2, h * 0.3 + 84 * u, ready ? 'Noć je tek počela.' : 'Nastavlja se…', { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(16 * u) + 'px', color: '#bcd4ff' }).setOrigin(0.5));
+    this.btns = [];
+    const mk = (y, label, act) => {
+      const r = this.add.rectangle(w / 2, y, 240 * u, 44 * u, 0xffffff, 0.08).setStrokeStyle(2 * u, 0xf3f0dc, 0.6);
+      const t = this.add.text(w / 2, y, label, { fontFamily: FONT, fontSize: Math.round(19 * u) + 'px', color: '#f3f0dc' }).setOrigin(0.5);
+      items.push(r, t); this.btns.push({ r, act });
+    };
+    if (ready) mk(h * 0.72, 'Dalje', 'go');
+    mk(h * 0.72 + (ready ? 54 * u : 0), 'Izbornik', 'menu');
+    items.forEach(o => { o.setAlpha(0); this.tweens.add({ targets: o, alpha: 1, duration: 900, delay: 300 }); });
+    SFX.save();
+  }
+
+  tapBtn(p) { const b = (this.btns || []).find(b => b.r.getBounds().contains(p.x, p.y)); if (b) this.choose(b.act); }
+
+  choose(act) {
+    SFX.click();
+    if (act === 'go') { this.scene.launch('UI'); this.scene.start('Game'); this.scene.bringToTop('UI'); }
+    else this.scene.start('Title');
+  }
+}
+
 let installEvt = null;
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
 const refreshTitle = () => { const t = window.game && game.scene.getScene('Title'); if (t && t.sys.isActive()) t.build(); };
@@ -313,7 +496,7 @@ const game = new Phaser.Game({
   physics: { default: 'arcade', arcade: { gravity: { y: 900 }, debug: false } },
   input: { activePointers: 4 },
   render: { antialias: true, powerPreference: 'high-performance' },
-  scene: [BootScene, TitleScene, GameScene, UIScene, EndScene],
+  scene: [BootScene, TitleScene, GameScene, UIScene, EndScene, TransitionScene],
 });
 
 let resizeT = null;

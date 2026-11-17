@@ -470,6 +470,13 @@ const Level = (() => {
   }
 
   const ZONES = [zone1, zone2, zone3, zone4, zone5, zone6, zone7];
+  // svjetovi igre Noćnik — zone su redom, svijet je skupina zona
+  const WORLDS = [
+    { id: 'podzemlje', name: 'Podzemlje', zones: [0, 1, 2, 3, 4, 5, 6] },
+    { id: 'suma', name: 'Šuma', zones: [] },
+    { id: 'grad', name: 'Grad', zones: [] },
+  ];
+  const worldOf = (i) => WORLDS.findIndex(w => w.zones.includes(i));
 
   const solid = (g, x, y, W, H) => (x < 0 || y < 0 || x >= W || y >= H) ? true : (g[y][x] === '#' || g[y][x] === 'I');
 
@@ -535,6 +542,7 @@ const Level = (() => {
 
   return {
     count: ZONES.length,
+    worlds: WORLDS, worldOf,
     build(i) { const L = ZONES[i](); L.index = i; L.name = THEMES[L.theme].name; return L; },
     addVisuals, addCollision,
   };

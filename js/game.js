@@ -16,11 +16,13 @@ const Progress = {
     let p = {};
     try { p = JSON.parse(localStorage.getItem(PROG_KEY)) || {}; } catch (e) {}
     const sv = Save.load() || {};
-    return { max: Math.max(p.max || 0, sv.level || 0), done: !!(p.done || sv.done) };
+    const done = !!(p.done || sv.done);
+    return { max: Math.max(p.max || 0, sv.level || 0), done, worldsDone: Math.max(p.worldsDone || 0, done ? 1 : 0) };
   },
   store(p) { try { localStorage.setItem(PROG_KEY, JSON.stringify(p)); } catch (e) {} },
   unlock(i) { const p = this.load(); if (i > p.max) { p.max = i; this.store(p); } },
   finish() { const p = this.load(); p.done = true; p.max = Math.max(p.max, Level.count - 1); this.store(p); },
+  worldDone(w) { const p = this.load(); p.worldsDone = Math.max(p.worldsDone, w + 1); if (w === 0) p.done = true; this.store(p); },
 };
 
 // razvojni način — samo uz tajnu poveznicu (?dev=lozinka); u kodu je samo otisak lozinke
@@ -918,9 +920,15 @@ class GameScene extends Phaser.Scene {
       this.exit = null;
       SFX.win();
       const next = this.levelIndex + 1;
-      if (next >= Level.count) this.cameras.main.fadeOut(1400, 0, 0, 0); else this.cameras.main.fadeOut(1400, 230, 245, 255);
+      const world = Level.worldOf(this.levelIndex);
+      const endsWorld = next >= Level.count || Level.worldOf(next) !== world;
+      if (endsWorld) this.cameras.main.fadeOut(1400, 0, 0, 0); else this.cameras.main.fadeOut(1400, 230, 245, 255);
       this.time.delayedCall(1500, () => {
-        if (next >= Level.count) { Progress.finish(); Save.store({ ...Save.fresh(next - 1), done: true }); this.scene.stop('UI'); this.scene.start('End'); }
+        if (endsWorld) {
+          Progress.worldDone(world);
+          Save.store(next < Level.count ? Save.fresh(next) : { ...Save.fresh(next - 1), done: true });
+          this.scene.stop('UI'); this.scene.start('Transition', { world });
+        }
         else { Save.store(Save.fresh(next)); this.scene.restart(); }
       });
     }
