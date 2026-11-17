@@ -501,7 +501,7 @@ class GameScene extends Phaser.Scene {
 
   spawnMonster(m) {
     const s = this.physics.add.sprite(m.x, m.y - 40, 'tihi', 'walk0').setScale(1 / RES).setDepth(14);
-    s.body.setSize(16 * RES, 56 * RES).setOffset(18 * RES, 23 * RES);
+    s.body.setSize(16 * RES, 56 * RES).setOffset(36 * RES, 23 * RES);
     s.body.setMaxVelocity(300, 600);
     this.physics.add.collider(s, this.layer);
     const eyes = this.add.image(0, 0, 'oci_tihi').setScale(1 / RES).setDepth(60).setBlendMode(Phaser.BlendModes.ADD);

@@ -10,6 +10,7 @@ const Art = (() => {
       c.save();
       c.translate(i * w * res, 0);
       c.scale(res, res);
+      c.beginPath(); c.rect(0, 0, w, h); c.clip();
       c.lineJoin = 'round'; c.lineCap = 'round';
       draw(c, f, i);
       c.restore();
@@ -277,7 +278,7 @@ const Art = (() => {
     for (let i = 0; i < 4; i++) F.push({ name: 'chase' + i, bob: BB[i] * 1.4, legF: LF[i] * 1.4, legB: LB[i] * 1.4, liftF: UF[i] * 1.5, liftB: UB[i] * 1.5, armF: AF[i] * 0.5, armB: -AF[i] * 0.5, reach: 0.9 });
     F.push({ name: 'idle0', bob: 0, legF: 2, legB: -2, liftF: 0, liftB: 0, armF: 0, armB: 0, reach: 0.15 });
     F.push({ name: 'idle1', bob: 0.7, legF: 2, legB: -2, liftF: 0, liftB: 0, armF: 0.05, armB: -0.05, reach: 0.25 });
-    sheet(scene, 'tihi', 48, 80, F, drawTihi);
+    sheet(scene, 'tihi', 84, 80, F, (c, f) => { c.translate(18, 0); drawTihi(c, f); });
   }
 
   // ---------------- GMIZAVAC: ljubičasta buba ----------------
