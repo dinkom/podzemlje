@@ -71,12 +71,12 @@ class UIScene extends Phaser.Scene {
   keyDown(e) {
     if (this.touchMode) { this.touchMode = false; this.releaseAll(); }
     const ov = this.overlay;
-    if (!ov) return;
     const k = e.code;
+    if (!ov) { if (k === 'Escape' && this.gameRef && this.scene.isActive('Game')) this.openPause(); return; }
     if (ov.kind === 'note') {
       if (['Space', 'Enter', 'KeyL', 'Escape'].includes(k)) { SFX.page(); this.closeOverlay(true); }
     } else if (ov.kind === 'pause') {
-      if (k === 'Escape') { SFX.click(); this.closeOverlay(true); }
+      if (k === 'Escape') { SFX.click(); if (ov.page && ov.page !== 'main') ov.choose('back'); else this.closeOverlay(true); }
       else if (k === 'ArrowUp' || k === 'KeyW') { ov.sel = (ov.sel + ov.buttons.length - 1) % ov.buttons.length; ov.paint(); SFX.click(); }
       else if (k === 'ArrowDown' || k === 'KeyS') { ov.sel = (ov.sel + 1) % ov.buttons.length; ov.paint(); SFX.click(); }
       else if (k === 'Enter' || k === 'Space') ov.choose(ov.buttons[ov.sel].act);
@@ -130,10 +130,12 @@ class UIScene extends Phaser.Scene {
     Controls.left = ax < -0.28;
     Controls.right = ax > 0.28;
     Controls.sneak = Math.abs(ax) < 0.62;   // palac malo pomaknut = šuljanje
+    const ay = (j.ky - j.by) / R;
+    Controls.up = ay < -0.4; Controls.down = ay > 0.4;   // samo za DEV letenje
   }
 
   up(p) {
-    if (this.joy.pid === p.id) { this.joy.pid = null; Controls.left = Controls.right = Controls.sneak = false; }
+    if (this.joy.pid === p.id) { this.joy.pid = null; Controls.left = Controls.right = Controls.sneak = Controls.up = Controls.down = false; }
     for (const k in this.btn) {
       const b = this.btn[k];
       if (b.pid === p.id) { b.pid = null; if (k === 'jump') Controls.jumpHeld = false; }
@@ -150,7 +152,7 @@ class UIScene extends Phaser.Scene {
   update() {
     const g = this.g, u = this.u, B = this.btn;
     g.clear();
-    if (!this.gameRef || this.overlay) { this.ctxText.setVisible(false); this.keyHint.setVisible(false); if (this.keyNum) this.keyNum.setVisible(false); return; }
+    if (!this.gameRef || this.overlay) { this.ctxText.setVisible(false); this.keyHint.setVisible(false); if (this.keyNum) this.keyNum.setVisible(false); if (this.devBadge) this.devBadge.setVisible(false); return; }
     const hud = this.registry.get('hud') || { hp: 3, battery: 100 };
     const ctx = this.registry.get('context');
     const touch = this.touchMode;
@@ -207,6 +209,10 @@ class UIScene extends Phaser.Scene {
       g.fillTriangle(hx - R + 8 * u, hy, hx - R + 20 * u, hy - 8 * u, hx - R + 20 * u, hy + 8 * u);
       g.fillTriangle(hx + R - 8 * u, hy, hx + R - 20 * u, hy - 8 * u, hx + R - 20 * u, hy + 8 * u);
     }
+
+    // DEV oznaka
+    if (!this.devBadge) this.devBadge = this.add.text(0, 0, 'DEV', { fontFamily: 'monospace', fontStyle: 'bold', color: '#1b1410', backgroundColor: '#ffd25a', padding: { x: 6, y: 3 } }).setOrigin(1, 0);
+    this.devBadge.setVisible(Dev.on).setPosition(this.scale.width - 62 * u, 18 * u).setFontSize(Math.round(11 * u));
 
     // HUD — životi (male lampice duše)
     for (let i = 0; i < 3; i++) {
@@ -295,22 +301,51 @@ class UIScene extends Phaser.Scene {
     this.scene.pause('Game');
     const ov = this.makePanel(ov => {
       const w = this.scale.width, h = this.scale.height, u = this.u;
-      const bg = this.add.rectangle(0, 0, w, h, 0x000000, 0.75).setOrigin(0);
-      const title = this.add.text(w / 2, h * 0.22, 'PAUZA', { fontFamily: FONT, fontSize: Math.round(34 * u) + 'px', color: '#e9dfc6', letterSpacing: 8 * u }).setOrigin(0.5);
-      ov.c.add([bg, title]);
+      const bg = this.add.rectangle(0, 0, w, h, 0x000000, 0.78).setOrigin(0);
+      ov.c.add(bg);
       ov.buttons = [];
-      const opts = [['Nastavi', 'resume'], ['Od zadnjeg spremanja', 'reload'], ['Glavni izbornik', 'menu']];
-      opts.forEach(([label, act], i) => {
-        const y = h * 0.42 + i * 58 * u;
-        const r = this.add.rectangle(w / 2, y, 300 * u, 46 * u, 0xffffff, 0.08).setStrokeStyle(2 * u, 0xe9dfc6, 0.5);
-        const t = this.add.text(w / 2, y, label, { fontFamily: FONT, fontSize: Math.round(19 * u) + 'px', color: '#e9dfc6' }).setOrigin(0.5);
-        ov.c.add([r, t]);
-        ov.buttons.push({ r, act });
-      });
-      if (!this.touchMode) {
-        const keys = 'A / D — hodanje        S (drži) — šuljanje        W / I / razmak — skok\nJ — udarac        K — svjetiljka        L — radnja (sakrij se, pročitaj, otključaj)        Esc — pauza';
-        const kt = this.add.text(w / 2, h * 0.88, keys, { fontFamily: FONT, fontSize: Math.round(12 * u) + 'px', color: '#9fb3c8', align: 'center', lineSpacing: 8 * u }).setOrigin(0.5);
-        ov.c.add(kt);
+      const btn = (x, y, bw, bh, label, act, size = 19, color = '#e9dfc6') => {
+        const r = this.add.rectangle(x, y, bw * u, bh * u, 0xffffff, 0.08).setStrokeStyle(2 * u, 0xe9dfc6, 0.5);
+        const t = this.add.text(x, y, label, { fontFamily: FONT, fontSize: Math.round(size * u) + 'px', color }).setOrigin(0.5);
+        ov.c.add([r, t]); ov.buttons.push({ r, act });
+      };
+      const page = ov.page || 'main';
+      if (page === 'main') {
+        const mx = Dev.on ? w * 0.3 : w / 2;
+        ov.c.add(this.add.text(mx, h * 0.2, 'PAUZA', { fontFamily: FONT, fontSize: Math.round(34 * u) + 'px', color: '#e9dfc6', letterSpacing: 8 * u }).setOrigin(0.5));
+        [['Nastavi', 'resume'], ['Od zadnjeg spremanja', 'reload'], ['Glavni izbornik', 'menu']].forEach(([l, a], i) => btn(mx, h * 0.4 + i * 58 * u, Dev.on ? 250 : 300, 46, l, a));
+        if (Dev.on) {
+          const dx = w * 0.78, yn = (i) => h * 0.08 + i * 32 * u;
+          ov.c.add(this.add.text(dx, yn(0), 'DEV', { fontFamily: 'monospace', fontStyle: 'bold', fontSize: Math.round(14 * u) + 'px', color: '#ffd25a' }).setOrigin(0.5));
+          const tog = (k, l) => (Dev[k] ? '✓ ' : '·  ') + l;
+          [['god', 'Neranjivost'], ['fly', 'Letenje kroz zidove'], ['bright', 'Bez mraka'], ['fast', 'Brzina ×3'], ['zoom', 'Cijela zona']].forEach(([k, l], i) => btn(dx, yn(i + 1), 210, 27, tog(k, l), 'dev:' + k, 13, Dev[k] ? '#ffd25a' : '#e9dfc6'));
+          btn(dx, yn(6), 210, 27, 'Skok na zonu…', 'zones', 13);
+          btn(dx, yn(7), 210, 27, 'Isključi DEV', 'devoff', 13, '#f08a7a');
+        }
+        if (!this.touchMode) {
+          const keys = 'A / D — hodanje        S (drži) — šuljanje        W / I / razmak — skok\nJ — udarac        K — svjetiljka        L — radnja (sakrij se, pročitaj, otključaj)        Esc — pauza';
+          ov.c.add(this.add.text(w / 2, h * 0.9, keys, { fontFamily: FONT, fontSize: Math.round(12 * u) + 'px', color: '#9fb3c8', align: 'center', lineSpacing: 8 * u }).setOrigin(0.5));
+        }
+      } else if (page === 'zones') {
+        ov.c.add(this.add.text(w / 2, h * 0.14, 'DEV · skok na zonu', { fontFamily: FONT, fontSize: Math.round(22 * u) + 'px', color: '#ffd25a' }).setOrigin(0.5));
+        for (let i = 0; i < Level.count; i++) {
+          const col = i % 4, row = Math.floor(i / 4), cw = Math.min(170 * u, (w - 30 * u) / 4);
+          btn(w / 2 + (col - 1.5) * cw, h * 0.36 + row * 64 * u, (cw - 10 * u) / u, 50, `${i + 1}. ${THEMES[Level.build(i).theme].name}`, 'zone:' + i, 13);
+        }
+        btn(w / 2, h * 0.8, 200, 40, 'Natrag', 'back', 16);
+      } else {
+        const zi = +page.split(':')[1], L = Level.build(zi);
+        ov.c.add(this.add.text(w / 2, h * 0.12, `DEV · ${zi + 1}. ${L.name} — kamo?`, { fontFamily: FONT, fontSize: Math.round(20 * u) + 'px', color: '#ffd25a' }).setOrigin(0.5));
+        const pts = [['Početak', L.start]];
+        L.objects.forEach(o => {
+          if (o.type === 'checkpoint') pts.push(['Lampa ' + o.id.slice(1), o]);
+          if (o.type === 'key') pts.push(['Ključ ' + o.id.slice(1), o]);
+          if (o.type === 'exit') pts.push(['Izlaz', o]);
+        });
+        L.doors.forEach(D => pts.push(['Vrata ' + D.id.slice(1), { x: D.x - 20, y: D.y + D.h * TILE }]));
+        ov.pts = pts;
+        pts.forEach(([l], i) => { const col = i % 4, row = Math.floor(i / 4), cw = Math.min(150 * u, (w - 30 * u) / 4); btn(w / 2 + (col - 1.5) * cw, h * 0.32 + row * 54 * u, (cw - 10 * u) / u, 42, l, 'pt:' + zi + ':' + i, 14); });
+        btn(w / 2, h * 0.85, 200, 40, 'Natrag', 'zones', 16);
       }
       if (ov.paint) ov.paint();
     });
@@ -320,11 +355,25 @@ class UIScene extends Phaser.Scene {
       b.r.setFillStyle(0xffffff, on ? 0.22 : 0.08).setStrokeStyle(2 * this.u, 0xe9dfc6, on ? 1 : 0.5);
     });
     ov.paint();
+    const go = (page) => { ov.page = page; ov.sel = 0; ov.relayout(); ov.paint(); };
     ov.choose = (act) => {
       SFX.click(); SFX.resume();
+      const G = this.scene.get('Game');
       if (act === 'resume') this.closeOverlay(true);
-      else if (act === 'reload') { this.closeOverlay(false); this.scene.get('Game').scene.restart(); }
-      else { this.closeOverlay(false); this.scene.stop('Game'); this.gameRef = null; this.scene.start('Title'); }
+      else if (act === 'reload') { this.closeOverlay(false); G.scene.restart(); }
+      else if (act === 'menu') { this.closeOverlay(false); this.scene.stop('Game'); this.gameRef = null; this.scene.start('Title'); }
+      else if (act.startsWith('dev:')) { const k = act.slice(4); Dev[k] = !Dev[k]; if (k === 'zoom' && G.layout) G.layout(); go('main'); }
+      else if (act === 'devoff') { Dev.setOn(false); G.layout && G.layout(); go('main'); }
+      else if (act === 'zones') go('zones');
+      else if (act === 'back') go('main');
+      else if (act.startsWith('zone:')) go('pts:' + act.slice(5));
+      else if (act.startsWith('pt:')) {
+        const [, zi, pi] = act.split(':').map(Number);
+        const o = ov.pts[pi][1];
+        Save.store(Save.fresh(zi));
+        window.__devJump = { x: o.x, y: o.y - 18 };
+        this.closeOverlay(false); G.scene.restart();
+      }
     };
     ov.tap = (p) => {
       const hit = ov.buttons.find(b => b.r.getBounds().contains(p.x, p.y));

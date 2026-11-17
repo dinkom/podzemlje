@@ -58,10 +58,13 @@ class TitleScene extends Phaser.Scene {
       if (!this.ready) return;
       SFX.init();
       const n = this.buttons.length;
-      if (e.code === 'ArrowUp' || e.code === 'KeyW') this.sel = (this.sel + n - 1) % n;
-      else if (e.code === 'ArrowDown' || e.code === 'KeyS') this.sel = (this.sel + 1) % n;
+      const grid = this.mode === 'zones' ? 4 : 1;
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') this.sel = Math.max(0, this.sel - grid);
+      else if (e.code === 'ArrowDown' || e.code === 'KeyS') this.sel = Math.min(n - 1, this.sel + grid);
+      else if (grid > 1 && (e.code === 'ArrowLeft' || e.code === 'KeyA')) this.sel = Math.max(0, this.sel - 1);
+      else if (grid > 1 && (e.code === 'ArrowRight' || e.code === 'KeyD')) this.sel = Math.min(n - 1, this.sel + 1);
       else if (e.code === 'Enter' || e.code === 'Space') { this.choose(this.buttons[this.sel].act); return; }
-      else if (e.code === 'Escape' && this.mode === 'confirm') { this.choose('back'); return; }
+      else if (e.code === 'Escape' && this.mode !== 'main') { this.choose('back'); return; }
       else return;
       SFX.click(); this.paintSel();
     });
@@ -72,8 +75,11 @@ class TitleScene extends Phaser.Scene {
     SFX.init(); SFX.click();
     if (act === 'askNew') { this.mode = 'confirm'; this.sel = 1; this.build(); return; }
     if (act === 'back') { this.mode = 'main'; this.sel = 0; this.build(); return; }
+    if (act === 'zones') { this.mode = 'zones'; this.sel = 0; this.build(); return; }
+    if (act === 'locked') return;
     this.starting = true;
     if (act === 'new') Save.clear();
+    if (act.startsWith('zone:')) Save.store(Save.fresh(+act.slice(5)));
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.time.delayedCall(520, () => {
       this.scene.launch('UI');
@@ -83,7 +89,7 @@ class TitleScene extends Phaser.Scene {
   }
 
   paintSel() {
-    (this.buttons || []).forEach((b, i) => b.r.setFillStyle(0xffffff, i === this.sel ? 0.2 : 0.07).setStrokeStyle(2 * this.u, 0xe9dfc6, i === this.sel ? 1 : 0.55));
+    (this.buttons || []).forEach((b, i) => b.r.setFillStyle(0xffffff, i === this.sel ? 0.2 : b.act === 'locked' ? 0.03 : 0.07).setStrokeStyle(2 * this.u, 0xe9dfc6, i === this.sel ? 1 : b.act === 'locked' ? 0.15 : 0.55));
   }
 
   build() {
@@ -104,26 +110,50 @@ class TitleScene extends Phaser.Scene {
     c.add([hero, tihi, eyes]);
     const title = this.add.text(w / 2, h * 0.26, 'PODZEMLJE', { fontFamily: FONT, fontSize: Math.round(54 * u) + 'px', color: '#e9dfc6', letterSpacing: 10 * u, stroke: '#000', strokeThickness: 6 * u }).setOrigin(0.5);
     const sv = Save.load() || {};
+    const prog = Progress.load();
     const zi = Math.min(sv.level || 0, Level.count - 1);
     const has = !sv.done && !!(sv.cp || (sv.level || 0) > 0);
-    let subTxt = sv.done ? 'sve zone prijeđene' : has ? `zona ${zi + 1} · ${THEMES[Level.build(zi).theme].name}` : 'sedam zona tame';
+    const canPick = prog.max > 0 || prog.done || Dev.on;
+    let subTxt = has ? `zona ${zi + 1} · ${THEMES[Level.build(zi).theme].name}` : prog.done ? 'sve zone prijeđene' : 'sedam zona tame';
     let opts;
+    this.buttons = [];
     if (this.mode === 'confirm') {
-      subTxt = 'Nova igra briše spremljeni napredak. Sigurno?';
+      subTxt = 'Nova igra kreće od prve zone. Otključane zone ostaju.';
       opts = [['Da, kreni ispočetka', 'new'], ['Ne, natrag', 'back']];
+    } else if (this.mode === 'zones') {
+      subTxt = 'Odaberi zonu';
+      opts = null;
+      for (let i = 0; i < Level.count; i++) {
+        const open = i <= prog.max || prog.done || Dev.on;
+        const col = i % 4, row = Math.floor(i / 4);
+        const cw = Math.min(168 * u, (w - 30 * u) / 4);
+        const x = w / 2 + (col - 1.5) * cw, y = h * 0.5 + row * 62 * u;
+        const r = this.add.rectangle(x, y, cw - 12 * u, 50 * u, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, open ? 0.55 : 0.15);
+        const t = this.add.text(x, y - 7 * u, `${i + 1}`, { fontFamily: FONT, fontSize: Math.round(13 * u) + 'px', color: open ? '#9fb3c8' : '#4a525c' }).setOrigin(0.5);
+        const t2 = this.add.text(x, y + 9 * u, open ? THEMES[Level.build(i).theme].name : 'zaključano', { fontFamily: FONT, fontStyle: open ? 'normal' : 'italic', fontSize: Math.round(14 * u) + 'px', color: open ? '#e9dfc6' : '#4a525c' }).setOrigin(0.5);
+        c.add([r, t, t2]);
+        this.buttons.push({ r, act: open ? 'zone:' + i : 'locked' });
+      }
+      const r = this.add.rectangle(w / 2, h * 0.5 + 2 * 62 * u, 200 * u, 40 * u, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, 0.55);
+      c.add([r, this.add.text(w / 2, h * 0.5 + 2 * 62 * u, 'Natrag', { fontFamily: FONT, fontSize: Math.round(17 * u) + 'px', color: '#e9dfc6' }).setOrigin(0.5)]);
+      this.buttons.push({ r, act: 'back' });
     } else {
-      opts = has ? [['Nastavi', 'continue'], ['Nova igra', 'askNew']] : [['Igraj', 'new']];
+      opts = [];
+      if (has) opts.push(['Nastavi', 'continue']);
+      if (canPick) opts.push(['Odaberi zonu', 'zones']);
+      if (has) opts.push(['Nova igra', 'askNew']);
+      else opts.push([prog.done ? 'Igraj ponovno' : prog.max > 0 ? 'Nova igra' : 'Igraj', 'new']);
     }
     const sub = this.add.text(w / 2, h * 0.26 + 44 * u, subTxt, { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(15 * u) + 'px', color: this.mode === 'confirm' ? '#f0c08a' : '#9fb3c8' }).setOrigin(0.5);
     c.add([title, sub]);
-    this.buttons = [];
-    opts.forEach(([label, act], i) => {
-      const y = h * 0.56 + i * 56 * u;
-      const r = this.add.rectangle(w / 2, y, 260 * u, 44 * u, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, 0.55);
+    if (opts) opts.forEach(([label, act], i) => {
+      const y = h * 0.52 + i * 52 * u;
+      const r = this.add.rectangle(w / 2, y, 260 * u, 42 * u, 0xffffff, 0.07).setStrokeStyle(2 * u, 0xe9dfc6, 0.55);
       const t = this.add.text(w / 2, y, label, { fontFamily: FONT, fontSize: Math.round(19 * u) + 'px', color: '#e9dfc6' }).setOrigin(0.5);
       c.add([r, t]);
       this.buttons.push({ r, act });
     });
+    if (Dev.on) c.add(this.add.text(w - 14 * u, 14 * u, 'DEV', { fontFamily: 'monospace', fontStyle: 'bold', fontSize: Math.round(11 * u) + 'px', color: '#1b1410', backgroundColor: '#ffd25a', padding: { x: 6, y: 3 } }).setOrigin(1, 0));
     this.sel = Math.min(this.sel || 0, this.buttons.length - 1); this.paintSel();
     const hint = this.add.text(w / 2, h - 18 * u, 'Najbolje sa slušalicama.  ·  Na računalu: W / S + Enter', { fontFamily: FONT, fontSize: Math.round(11 * u) + 'px', color: '#6f7d8c' }).setOrigin(0.5);
     c.add(hint);
@@ -255,6 +285,8 @@ class EndScene extends Phaser.Scene {
     if (this.menuBtn && this.menuBtn.getBounds().contains(p.x, p.y)) { SFX.click(); this.scene.start('Title'); }
   }
 }
+
+Dev.checkUrl().then(() => { const t = game.scene.getScene('Title'); if (t && t.sys.isActive()) t.build(); });
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,

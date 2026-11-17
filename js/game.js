@@ -9,13 +9,48 @@ const Save = {
   fresh(level = 0) { return { level, cp: null, doorsOpen: [], taken: [] }; },
 };
 
+// napredak: koje su zone otključane (ostaje i kad se krene nova igra)
+const PROG_KEY = 'podzemlje-progress-v1';
+const Progress = {
+  load() {
+    let p = {};
+    try { p = JSON.parse(localStorage.getItem(PROG_KEY)) || {}; } catch (e) {}
+    const sv = Save.load() || {};
+    return { max: Math.max(p.max || 0, sv.level || 0), done: !!(p.done || sv.done) };
+  },
+  store(p) { try { localStorage.setItem(PROG_KEY, JSON.stringify(p)); } catch (e) {} },
+  unlock(i) { const p = this.load(); if (i > p.max) { p.max = i; this.store(p); } },
+  finish() { const p = this.load(); p.done = true; p.max = Math.max(p.max, Level.count - 1); this.store(p); },
+};
+
+// razvojni način — samo uz tajnu poveznicu (?dev=lozinka); u kodu je samo otisak lozinke
+const DEV_KEY = 'podzemlje-dev';
+const Dev = {
+  on: (() => { try { return localStorage.getItem(DEV_KEY) === '1'; } catch (e) { return false; } })(),
+  god: true, fly: false, bright: false, fast: false, zoom: false,
+  HASH: '496b6c14c99cde51a4c8adb6ccf9d9e181c65874af37e1ab42aa087803edcfd8',
+  async checkUrl() {
+    const q = new URLSearchParams(location.search).get('dev');
+    if (q === null) return;
+    history.replaceState(null, '', location.pathname);   // makni lozinku iz adresne trake
+    if (q === 'off') { this.setOn(false); return; }
+    try {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(q));
+      const hex = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+      if (hex === this.HASH) this.setOn(true);
+    } catch (e) {}
+  },
+  setOn(v) { this.on = v; try { v ? localStorage.setItem(DEV_KEY, '1') : localStorage.removeItem(DEV_KEY); } catch (e) {} },
+  is(k) { return this.on && this[k]; },
+};
+
 // stanje kontrola dijele UI scena (touch) i tipkovnica
 const Controls = {
   left: false, right: false, jumpHeld: false,
   _p: {},
   press(k) { this._p[k] = true; },
   take(k) { const v = !!this._p[k]; this._p[k] = false; return v; },
-  reset() { this.left = this.right = this.jumpHeld = this.sneak = false; this._p = {}; },
+  reset() { this.left = this.right = this.up = this.down = this.jumpHeld = this.sneak = false; this._p = {}; },
 };
 
 class GameScene extends Phaser.Scene {
@@ -26,6 +61,7 @@ class GameScene extends Phaser.Scene {
     this.save = Save.load() || Save.fresh();
     this.levelIndex = Math.min(this.save.level || 0, Level.count - 1);
     const L = this.L = Level.build(this.levelIndex);
+    Progress.unlock(this.levelIndex);
     const T = this.T = THEMES[L.theme];
     Tiles.ensureTheme(this, T);
     SFX.setTheme(T.drone);
@@ -102,6 +138,7 @@ class GameScene extends Phaser.Scene {
     p.body.setSize(11 * RES, 22 * RES).setOffset(11 * RES, 9 * RES);
     p.body.setMaxVelocity(400, 620);
     p.setCollideWorldBounds(true);
+    if (window.__devJump) { p.setPosition(window.__devJump.x, window.__devJump.y); window.__devJump = null; }
     this.physics.add.collider(p, this.layer);
     this.st = { face: 1, coyote: 0, buffer: 0, hp: 3, invul: 0, hidden: null, flash: false, battery: 100, atkCd: 0, atkT: 0, lock: 0, dead: false, jumping: false, airVy: 0, stepT: 0, insideCp: cp ? cp.id : null, doorMsg: false };
     this.peek = this.add.image(0, 0, 'oci_junak').setScale(1 / RES).setDepth(62).setVisible(false).setBlendMode(Phaser.BlendModes.ADD);
@@ -166,7 +203,7 @@ class GameScene extends Phaser.Scene {
   layout() {
     const w = this.scale.width, h = this.scale.height;
     const cam = this.cameras.main;
-    const zoom = h / VIEW_H;
+    const zoom = Dev.is('zoom') ? Math.min(w / this.worldW, h / this.worldH) : h / VIEW_H;
     cam.setZoom(zoom);
     const vw = w / zoom, vh = h / zoom;
     this.vw = vw; this.vh = vh;
@@ -176,7 +213,7 @@ class GameScene extends Phaser.Scene {
       const s = vh / th / 2;
       ts.setTileScale(s, s);
     });
-    this.darkTex.setSize(Math.ceil((vw + 80) / this.DS), Math.ceil((vh + 80) / this.DS));
+    if (!Dev.is('zoom')) this.darkTex.setSize(Math.ceil((vw + 80) / this.DS), Math.ceil((vh + 80) / this.DS));
     this.dark.setTexture('darkness');
   }
 
@@ -353,7 +390,7 @@ class GameScene extends Phaser.Scene {
   // ---------------- šiljci ----------------
   checkSpikes() {
     const st = this.st, b = this.player.body, g = this.L.grid;
-    if (st.hidden) return;
+    if (st.hidden || Dev.is('god')) return;
     const cy = Math.floor((b.bottom - 3) / TILE);
     const row = g[cy]; if (!row) return;
     // pošteno: bode samo kad je sredina lika iznad šiljaka (s malo zalihe na rubovima)
@@ -539,9 +576,21 @@ class GameScene extends Phaser.Scene {
       else { this.ui.toast('Baterija je prazna.'); SFX.click(); }
     }
     if (st.flash) {
-      st.battery = Math.max(0, st.battery - 3.4 * dt);
+      if (!Dev.is('god')) st.battery = Math.max(0, st.battery - 3.4 * dt);
       if (st.battery <= 0) { st.flash = false; this.ui.toast('Baterija je prazna!'); }
     }
+
+    // DEV: letenje kroz zidove
+    if (Dev.is('fly')) {
+      b.setAllowGravity(false); b.checkCollision.none = true;
+      const up = Controls.up || K.W.isDown || K.I.isDown || K.SPACE.isDown, down = Controls.down || K.S.isDown;
+      const sp = Dev.fast ? 600 : 240;
+      const dx = (right ? 1 : 0) - (left ? 1 : 0), dy = (down ? 1 : 0) - (up ? 1 : 0);
+      b.setVelocity(dx * sp, dy * sp);
+      if (dx) st.face = dx;
+      p.setFlipX(st.face < 0); p.anims.stop(); p.setFrame('fly0');
+      return;
+    } else if (!b.allowGravity) { b.setAllowGravity(true); b.checkCollision.none = false; }
 
     // kretanje
     let dir = (right ? 1 : 0) - (left ? 1 : 0);
@@ -560,7 +609,7 @@ class GameScene extends Phaser.Scene {
     const onIce = ground && underC[1] === 'I';
     const sneak = Controls.sneak || K.S.isDown;
     st.sneak = sneak && dir !== 0;
-    const target = dir * (wet ? 66 : (sneak && ground) ? 58 : 118);
+    const target = dir * (wet ? 66 : (sneak && ground) ? 58 : 118) * (Dev.is('fast') ? 2.5 : 1);
     if (st.lock <= 0) b.setVelocityX(Phaser.Math.Linear(b.velocity.x, target, Math.min(1, dt * (onIce ? 1.6 : ground ? 16 : 12))));
     if (dir !== 0 && st.atkT <= 0) st.face = dir;
     p.setFlipX(st.face < 0);
@@ -784,6 +833,7 @@ class GameScene extends Phaser.Scene {
   }
 
   hurt(dir) {
+    if (Dev.is('god')) return;
     const st = this.st;
     st.hp--; st.invul = 1.3; st.lock = 0.25;
     this.player.body.setVelocity(dir * 170, -210);
@@ -793,6 +843,7 @@ class GameScene extends Phaser.Scene {
   }
 
   die(reason) {
+    if (Dev.is('god')) return;
     const st = this.st;
     if (st.dead) return;
     st.dead = true; st.flash = false;
@@ -869,7 +920,7 @@ class GameScene extends Phaser.Scene {
       const next = this.levelIndex + 1;
       if (next >= Level.count) this.cameras.main.fadeOut(1400, 0, 0, 0); else this.cameras.main.fadeOut(1400, 230, 245, 255);
       this.time.delayedCall(1500, () => {
-        if (next >= Level.count) { Save.store({ ...Save.fresh(next - 1), done: true }); this.scene.stop('UI'); this.scene.start('End'); }
+        if (next >= Level.count) { Progress.finish(); Save.store({ ...Save.fresh(next - 1), done: true }); this.scene.stop('UI'); this.scene.start('End'); }
         else { Save.store(Save.fresh(next)); this.scene.restart(); }
       });
     }
@@ -951,6 +1002,9 @@ class GameScene extends Phaser.Scene {
   }
 
   drawDarkness(time) {
+    const noDark = Dev.is('bright') || Dev.is('zoom');
+    this.dark.setVisible(!noDark);
+    if (noDark) return;
     const v = this.cameras.main.worldView, DS = this.DS;
     const ox = v.x - 40, oy = v.y - 40;
     this.dark.setPosition(ox, oy);
