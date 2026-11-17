@@ -35,6 +35,30 @@ const THEMES = {
     glow: [0xffb347, 0xff6a3a], dark: 'rgba(7,2,1,', darkA: 0.95, cam: '#0c0504',
     drone: { f: 36.7, f3: 55, lp: 300, wind: 300, windG: 0.014 }, drip: [6, 10],
   },
+  gljive: {
+    id: 'gljive', name: 'Gljivarnik',
+    rock: ['#4a3838', '#33272a', '#261c1f'], spLight: 'rgba(150,110,100,0.45)', spDark: 'rgba(18,10,10,0.55)', rimL: 'rgba(255,190,160,0.16)',
+    surface: 'mycel', extra: 'spores', ceilGlow: 8,
+    plank: ['#e2cba8', '#9b7f60', '#f3e6cf'],
+    glow: [0xff8a3d, 0xff5fa2], dark: 'rgba(6,3,4,', darkA: 0.92, cam: '#0b0607',
+    drone: { f: 41.2, f3: 61.7, lp: 300, wind: 520, windG: 0.018 }, drip: [3, 6],
+  },
+  led: {
+    id: 'led', name: 'Ledena pećina',
+    rock: ['#5a7388', '#3a4e62', '#2b3b4c'], spLight: 'rgba(200,230,255,0.35)', spDark: 'rgba(10,20,32,0.5)', rimL: 'rgba(230,248,255,0.3)',
+    surface: 'snow', extra: 'frost', ceilGlow: 8,
+    plank: ['#9cb2bf', '#56697a', '#e8f6ff'],
+    glow: [0x9fe8ff, 0xd8f4ff], dark: 'rgba(2,5,10,', darkA: 0.92, cam: '#060b12',
+    drone: { f: 46.2, f3: 69.3, lp: 420, wind: 1400, windG: 0.034 }, drip: [5, 8],
+  },
+  gnijezdo: {
+    id: 'gnijezdo', name: 'Gnijezdo',
+    rock: ['#3d1f26', '#29141a', '#1e0e13'], spLight: 'rgba(140,60,70,0.4)', spDark: 'rgba(10,2,4,0.6)', rimL: 'rgba(255,120,140,0.14)',
+    surface: 'vein', extra: 'eggs', ceilGlow: 11,
+    plank: ['#cbbfac', '#7a7062', '#efe6d0'],
+    glow: [0xff3b4e, 0xb04bff], dark: 'rgba(6,1,2,', darkA: 0.95, cam: '#0a0204',
+    drone: { f: 34.6, f3: 51.9, lp: 240, wind: 260, windG: 0.02 }, drip: [2, 4],
+  },
 };
 
 const Tiles = (() => {
@@ -89,6 +113,18 @@ const Tiles = (() => {
       c.strokeStyle = 'rgba(159,243,255,0.14)'; c.lineWidth = 0.7;
       for (let k = 0; k < 3; k++) { const x = R() * 24; c.beginPath(); c.moveTo(x, R() * 8); c.lineTo(x + (R() - 0.5), 10 + R() * 14); c.stroke(); }
     }
+    if (T.extra === 'spores') {
+      for (let k = 0; k < 3; k++) { c.fillStyle = R() < 0.5 ? 'rgba(255,150,80,0.35)' : 'rgba(255,110,170,0.3)'; c.beginPath(); c.arc(R() * 24, R() * 24, 0.6 + R() * 0.8, 0, Math.PI * 2); c.fill(); }
+    }
+    if (T.extra === 'frost') {
+      c.strokeStyle = 'rgba(230,248,255,0.28)'; c.lineWidth = 0.6;
+      for (let k = 0; k < 2; k++) { const x = R() * 24, y = R() * 24; c.beginPath(); c.moveTo(x - 2, y); c.lineTo(x + 2, y); c.moveTo(x, y - 2); c.lineTo(x, y + 2); c.moveTo(x - 1.4, y - 1.4); c.lineTo(x + 1.4, y + 1.4); c.stroke(); }
+    }
+    if (T.extra === 'eggs' && R() < 0.3) {
+      const x = 5 + R() * 14, y = 7 + R() * 12;
+      c.fillStyle = 'rgba(235,215,200,0.4)'; c.beginPath(); c.ellipse(x, y, 1.8, 2.4, 0.3, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = 'rgba(120,20,30,0.6)'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(x - 3, y + 4); c.quadraticCurveTo(x, y, x + 4, y - 3); c.stroke();
+    }
     if (T.extra === 'skulls' && R() < 0.35) {
       const x = 5 + R() * 14, y = 7 + R() * 12;
       c.fillStyle = 'rgba(215,200,170,0.55)';
@@ -124,6 +160,17 @@ const Tiles = (() => {
       c.fillStyle = '#2b7a76'; c.fillRect(0, 0, 24, 4);
       c.fillStyle = 'rgba(159,243,255,0.55)'; c.fillRect(0, 1.4, 24, 0.7);
       for (let x = 0; x < 24; x += 4) { c.fillStyle = '#3fa79c'; c.fillRect(x + R() * 2, 3.6, 1.2, 1.5 + R() * 2.5); }
+    } else if (T.surface === 'mycel') {
+      c.fillStyle = '#d8c2b8'; c.fillRect(0, 0, 24, 3.6);
+      c.fillStyle = 'rgba(255,240,235,0.7)'; for (let x = 0; x < 24; x += 2.5) c.fillRect(x + R(), 0.6, 1.2, 1);
+      c.fillStyle = 'rgba(60,30,30,0.6)'; c.fillRect(0, 3.6, 24, 1.2);
+    } else if (T.surface === 'snow') {
+      c.fillStyle = '#eef8ff'; c.beginPath(); c.moveTo(0, 5); for (let x = 0; x <= 24; x += 4) c.quadraticCurveTo(x + 2, 3.2 + R() * 1.6, x + 4, 4.6); c.lineTo(24, 0); c.lineTo(0, 0); c.closePath(); c.fill();
+      c.fillStyle = 'rgba(140,190,230,0.55)'; c.fillRect(0, 3.6, 24, 1.4);
+    } else if (T.surface === 'vein') {
+      c.fillStyle = '#5a1e2a'; c.fillRect(0, 0, 24, 4);
+      c.strokeStyle = '#a3243a'; c.lineWidth = 0.9; c.beginPath(); c.moveTo(0, 2 + R()); c.bezierCurveTo(6, R() * 4, 14, 4 * R(), 24, 2); c.stroke();
+      c.fillStyle = 'rgba(10,0,4,0.6)'; c.fillRect(0, 4, 24, 1.2);
     } else if (T.surface === 'ash') {
       c.fillStyle = '#6e645a'; c.fillRect(0, 0, 24, 4);
       c.fillStyle = 'rgba(30,20,14,0.6)'; c.fillRect(0, 4, 24, 1.2);
@@ -144,6 +191,16 @@ const Tiles = (() => {
     } else if (T.surface === 'algae') {
       c.strokeStyle = '#47c2b3'; c.lineWidth = 0.7;
       for (let i = 0; i < 3; i++) { const x = 1 + R() * 22; c.beginPath(); c.moveTo(x, 2); c.quadraticCurveTo(x + 1.5, 0, x + 0.5, -1.5 - R() * 2); c.stroke(); }
+    } else if (T.surface === 'mycel') {
+      if (R() < 0.6) {
+        const x = 3 + R() * 18, h = 2 + R() * 3;
+        c.strokeStyle = '#efe0d2'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(x, 1.5); c.lineTo(x, 1.5 - h); c.stroke();
+        c.fillStyle = R() < 0.5 ? '#ff8a3d' : '#ff5fa2'; c.beginPath(); c.ellipse(x, 1.5 - h, 1.6, 0.9, 0, Math.PI, 0); c.closePath(); c.fill();
+      }
+    } else if (T.surface === 'snow') {
+      if (R() < 0.3) { c.fillStyle = 'rgba(255,255,255,0.9)'; c.beginPath(); c.arc(4 + R() * 16, 1, 0.6, 0, Math.PI * 2); c.fill(); }
+    } else if (T.surface === 'vein') {
+      if (R() < 0.4) { c.fillStyle = 'rgba(230,210,195,0.85)'; const x = 4 + R() * 16; c.beginPath(); c.ellipse(x, 0.6, 1.4, 1.9, 0, 0, Math.PI * 2); c.fill(); c.strokeStyle = OUTL; c.lineWidth = 0.4; c.stroke(); }
     } else if (T.surface === 'ash') {
       c.strokeStyle = '#e6dcc4'; c.lineWidth = 0.8;
       for (let i = 0; i < 2; i++) { if (R() < 0.6) { const x = 2 + R() * 20; c.beginPath(); c.moveTo(x, 1.2); c.lineTo(x + 2.5, 0.4); c.stroke(); } }
@@ -178,7 +235,7 @@ const Tiles = (() => {
 
   // šiljci (opasni) — boja po temi
   function spikeTile(c, T) {
-    const cols = { spilje: ['#8b97ab', '#4b5568'], rudnik: ['#d39bff', '#7a3fb5'], dubine: ['#9fe6e0', '#2f6f78'], kosturnica: ['#efe6d0', '#9a8a70'] }[T.id];
+    const cols = { spilje: ['#8b97ab', '#4b5568'], rudnik: ['#d39bff', '#7a3fb5'], dubine: ['#9fe6e0', '#2f6f78'], kosturnica: ['#efe6d0', '#9a8a70'], gljive: ['#f0c8a0', '#8a4a3a'], led: ['#f2fbff', '#7fb0d0'], gnijezdo: ['#efe6d0', '#8a2a3a'] }[T.id];
     for (let i = 0; i < 4; i++) {
       const x = 3 + i * 6, h = 13 + (i % 2) * 4;
       c.beginPath(); c.moveTo(x - 3, 24); c.lineTo(x, 24 - h); c.lineTo(x + 3, 24); c.closePath();
@@ -186,6 +243,24 @@ const Tiles = (() => {
       c.fillStyle = g; c.fill(); c.strokeStyle = OUTL; c.lineWidth = 0.8; c.stroke();
       c.fillStyle = 'rgba(160,30,30,0.55)'; c.beginPath(); c.moveTo(x - 0.6, 24 - h + 2); c.lineTo(x, 24 - h); c.lineTo(x + 0.6, 24 - h + 2); c.closePath(); c.fill();
     }
+  }
+  // gljiva-trampolin
+  function bounceTile(c, T) {
+    c.fillStyle = '#efe2c8'; c.fillRect(9, 9, 6, 15); c.strokeStyle = OUTL; c.lineWidth = 0.8; c.strokeRect(9, 9, 6, 15);
+    const g = c.createLinearGradient(0, 0, 0, 11); g.addColorStop(0, '#ff6a3a'); g.addColorStop(1, '#b8321e');
+    c.beginPath(); c.moveTo(-1, 10.5); c.quadraticCurveTo(0, -1, 12, -0.5); c.quadraticCurveTo(24, -1, 25, 10.5); c.closePath();
+    c.fillStyle = g; c.fill(); c.strokeStyle = OUTL; c.lineWidth = 1; c.stroke();
+    c.fillStyle = '#fff4e8'; [[5, 5, 1.6], [12, 3, 1.9], [19, 5.5, 1.5], [9, 8, 1], [16, 8.4, 1.1]].forEach(([x, y, r]) => { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); });
+    c.fillStyle = 'rgba(255,220,180,0.5)'; c.fillRect(1, 10.5, 22, 1.2);
+  }
+  // led
+  function iceTile(c, T) {
+    const g = c.createLinearGradient(0, 0, 24, 24); g.addColorStop(0, '#cfefff'); g.addColorStop(0.5, '#8cc8ea'); g.addColorStop(1, '#5e98c4');
+    c.fillStyle = g; c.fillRect(0, 0, 24, 24);
+    c.fillStyle = 'rgba(255,255,255,0.75)'; c.fillRect(0, 0, 24, 2);
+    c.strokeStyle = 'rgba(255,255,255,0.5)'; c.lineWidth = 0.7;
+    c.beginPath(); c.moveTo(3, 6); c.lineTo(10, 3.5); c.moveTo(13, 14); c.lineTo(21, 9); c.moveTo(5, 19); c.lineTo(9, 17.5); c.stroke();
+    c.strokeStyle = 'rgba(40,90,140,0.5)'; c.beginPath(); c.moveTo(16, 3); c.lineTo(14, 9); c.lineTo(17, 13); c.stroke();
   }
   // daska koja puca
   function crumbleTile(c, T) {
@@ -220,6 +295,62 @@ const Tiles = (() => {
       tri([[x - w, base], [x - w * 0.6, base - h * 0.8], [x, base - h], [x + w * 0.6, base - h * 0.75], [x + w, base]], col);
       c.fillStyle = light; c.beginPath(); c.moveTo(x - w * 0.3, base); c.lineTo(x - w * 0.2, base - h * 0.8); c.lineTo(x + w * 0.1, base - h * 0.9); c.lineTo(x + w * 0.1, base); c.closePath(); c.fill();
     };
+
+    if (T.id === 'gljive') {
+      const shroom = (x, h, w, cap, spots) => {
+        c.strokeStyle = OUTL; c.lineWidth = 2.4; c.beginPath(); c.moveTo(x, 24); c.lineTo(x, 24 - h); c.stroke();
+        c.strokeStyle = '#efe0d2'; c.lineWidth = 1.3; c.stroke();
+        c.beginPath(); c.ellipse(x, 24 - h, w, w * 0.6, 0, Math.PI, 0); c.closePath(); c.fillStyle = cap; c.fill(); c.strokeStyle = OUTL; c.lineWidth = 0.7; c.stroke();
+        if (spots) { c.fillStyle = 'rgba(255,245,230,0.85)'; c.beginPath(); c.arc(x - w * 0.35, 24 - h - w * 0.25, 0.7, 0, Math.PI * 2); c.arc(x + w * 0.3, 24 - h - w * 0.35, 0.6, 0, Math.PI * 2); c.fill(); }
+      };
+      switch (i) {
+        case 0: shroom(8, 9, 4, '#ff8a3d', true); shroom(15, 14, 5, '#ffa24f', true); shroom(19, 5, 2.6, '#ff8a3d', false); break;
+        case 1: [[6, 3], [11, 5], [16, 4], [20, 2.5]].forEach(([x, h]) => { c.strokeStyle = '#d8b0c0'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(x, 24); c.lineTo(x, 24 - h * 1.8); c.stroke(); ell(x, 24 - h * 1.8 - 1.2, 1.6, 1.8, '#ff5fa2', 0.5); }); break;
+        case 2: ell(8, 21.5, 4, 3, '#e8d8c0'); ell(16, 22.5, 2.6, 1.8, '#d9c6aa'); c.fillStyle = 'rgba(120,90,60,0.5)'; c.beginPath(); c.arc(8, 19.5, 0.8, 0, Math.PI * 2); c.fill(); break;
+        case 3: c.fillStyle = '#5a3d2a'; c.fillRect(8, 12, 8, 12); c.strokeStyle = OUTL; c.lineWidth = 0.8; c.strokeRect(8, 12, 8, 12); ell(16.5, 15, 4, 1.4, '#d98a4a'); ell(16.5, 19, 3.2, 1.2, '#c87a3a'); break;
+        case 4: for (let k = 0; k < 6; k++) { c.strokeStyle = k % 2 ? '#c99a7a' : '#a87a5a'; c.lineWidth = 0.7; c.beginPath(); c.moveTo(4 + k * 3, 24); c.lineTo(4 + k * 3 + (R() - 0.5) * 2, 18 - R() * 4); c.stroke(); c.fillStyle = '#ffb07a'; c.beginPath(); c.arc(4 + k * 3, 17 - R() * 3, 0.6, 0, Math.PI * 2); c.fill(); } break;
+        case 5: for (let k = 0; k < 5; k++) { const x = 3 + k * 4.5; ell(x, 23, 1.6, 1, k % 2 ? '#ff8a3d' : '#efe0d2', 0.4); } break;
+        case 6: case 7: stalactites(i === 6 ? 2 : 3, '#5a4440', 'rgba(255,200,170,0.2)'); break;
+        case 8: for (let k = 0; k < 3; k++) { const x = 6 + k * 6, h = 8 + R() * 8; c.strokeStyle = '#d8b0a0'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); ell(x, h + 1.8, 1.8, 2.4, k % 2 ? '#ff5fa2' : '#ff8a3d', 0.5); } break;
+        case 9: for (let k = 0; k < 5; k++) { c.strokeStyle = 'rgba(240,220,210,0.6)'; c.lineWidth = 0.5; const x = 3 + k * 4.5; c.beginPath(); c.moveTo(x, 0); c.bezierCurveTo(x + 2, 5, x - 2, 9, x + 1, 13 + R() * 6); c.stroke(); } break;
+        case 10: cobweb(); break;
+        case 11: c.strokeStyle = '#d8b0a0'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(12, 0); c.lineTo(12, 8); c.stroke(); c.beginPath(); c.ellipse(12, 11, 5, 3, 0, 0, Math.PI); c.closePath(); c.fillStyle = '#ffa24f'; c.fill(); c.strokeStyle = OUTL; c.lineWidth = 0.6; c.stroke(); break;
+      }
+      return;
+    }
+    if (T.id === 'led') {
+      switch (i) {
+        case 0: crystal(9, 24, 13, 3.2, '#9fe8ff', 'rgba(255,255,255,0.7)'); crystal(15, 24, 8, 2.4, '#6fc8f0', 'rgba(255,255,255,0.6)'); break;
+        case 1: crystal(12, 24, 15, 3.6, '#d8f4ff', 'rgba(255,255,255,0.8)'); crystal(6, 24, 6, 2, '#b8e4ff', 'rgba(255,255,255,0.6)'); break;
+        case 2: c.fillStyle = '#eef8ff'; c.beginPath(); c.moveTo(1, 24); c.quadraticCurveTo(8, 15, 15, 20); c.quadraticCurveTo(20, 17, 23, 24); c.closePath(); c.fill(); c.strokeStyle = 'rgba(120,170,210,0.6)'; c.lineWidth = 0.6; c.stroke(); break;
+        case 3: c.fillStyle = 'rgba(160,210,240,0.55)'; c.fillRect(4, 14, 16, 10); c.strokeStyle = 'rgba(255,255,255,0.7)'; c.lineWidth = 0.6; c.strokeRect(4, 14, 16, 10);
+          c.strokeStyle = '#e8e0cc'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(7, 19); c.lineTo(15, 19); c.stroke(); for (let x = 8; x < 15; x += 2) { c.beginPath(); c.moveTo(x, 17); c.lineTo(x, 21); c.stroke(); } ell(16.5, 19, 1.6, 1.3, '#e8e0cc', 0.4); break;
+        case 4: for (let k = 0; k < 4; k++) { c.strokeStyle = 'rgba(220,245,255,0.85)'; c.lineWidth = 0.7; const x = 5 + k * 4.5; c.beginPath(); c.moveTo(x, 24); c.lineTo(x, 16 - R() * 3); c.moveTo(x, 20); c.lineTo(x - 2, 18); c.moveTo(x, 19); c.lineTo(x + 2, 17); c.stroke(); } break;
+        case 5: c.fillStyle = '#3e4652'; c.fillRect(9, 17, 6, 7); c.strokeStyle = OUTL; c.lineWidth = 0.7; c.strokeRect(9, 17, 6, 7); c.fillStyle = 'rgba(200,240,255,0.7)'; c.fillRect(8, 16, 8, 2); break;
+        case 6: case 7: for (let k = 0; k < (i === 6 ? 2 : 4); k++) { const x = 4 + k * (16 / (i === 6 ? 2 : 4)) + R() * 3, h = 6 + R() * 12; tri([[x - 1.8, 0], [x + 1.8, 0], [x, h]], k % 2 ? '#cfefff' : '#9fd4f0'); } break;
+        case 8: for (let k = 0; k < 3; k++) { const x = 5 + k * 7; c.strokeStyle = 'rgba(160,232,255,0.8)'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(x, 0); c.lineTo(x + 1, 6); c.lineTo(x - 1, 10); c.lineTo(x, 14); c.stroke(); c.fillStyle = '#d8f4ff'; c.beginPath(); c.arc(x, 14.5, 0.9, 0, Math.PI * 2); c.fill(); } break;
+        case 9: for (let k = 0; k < 3; k++) { c.strokeStyle = '#7a8a98'; c.lineWidth = 1.1; const x = 6 + k * 6; c.beginPath(); c.moveTo(x, 0); c.bezierCurveTo(x + 3, 6, x - 3, 10, x, 14 + R() * 6); c.stroke(); } break;
+        case 10: cobweb(); c.fillStyle = 'rgba(240,250,255,0.8)'; [[5, 3], [9, 8], [3, 11]].forEach(([x, y]) => { c.beginPath(); c.arc(x, y, 0.6, 0, Math.PI * 2); c.fill(); }); break;
+        case 11: chain('#b8c8d8'); break;
+      }
+      return;
+    }
+    if (T.id === 'gnijezdo') {
+      switch (i) {
+        case 0: [[7, 21, 2.6], [12, 20, 3.2], [17, 21.5, 2.4], [10, 17, 2.2]].forEach(([x, y, r]) => { ell(x, y, r * 0.8, r, '#ff6a7a', 0.5); c.fillStyle = 'rgba(255,220,220,0.7)'; c.beginPath(); c.arc(x - r * 0.3, y - r * 0.4, r * 0.25, 0, Math.PI * 2); c.fill(); }); break;
+        case 1: c.strokeStyle = '#c9a8d8'; c.lineWidth = 0.6; for (let k = -1; k <= 1; k++) { c.beginPath(); c.moveTo(12 + k * 4, 24); c.lineTo(12 + k, 10); c.stroke(); } ell(12, 15, 4, 6, '#b04bff', 0.7); c.strokeStyle = 'rgba(255,255,255,0.4)'; c.beginPath(); c.moveTo(9, 12); c.quadraticCurveTo(12, 16, 15, 12); c.moveTo(9, 16); c.quadraticCurveTo(12, 20, 15, 16); c.stroke(); break;
+        case 2: c.strokeStyle = OUTL; c.lineWidth = 2.2; c.beginPath(); c.moveTo(3, 23); c.lineTo(12, 22); c.moveTo(9, 23.5); c.lineTo(20, 21); c.stroke(); c.strokeStyle = '#ddd5c0'; c.lineWidth = 1.2; c.stroke(); break;
+        case 3: ell(12, 18, 4.4, 6, '#d8ccc0', 0.8); c.strokeStyle = 'rgba(120,100,90,0.6)'; c.lineWidth = 0.5; for (let y = 13; y < 24; y += 2.5) { c.beginPath(); c.moveTo(8, y); c.quadraticCurveTo(12, y + 1.5, 16, y); c.stroke(); } break;
+        case 4: for (let k = 0; k < 4; k++) { c.strokeStyle = k % 2 ? '#7a1f2e' : '#5a1622'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(5 + k * 4.5, 24); c.bezierCurveTo(2 + k * 4.5, 17, 9 + k * 4.5, 13, 5 + k * 4.5, 7 + R() * 5); c.stroke(); } break;
+        case 5: c.fillStyle = '#e8ddd0'; c.beginPath(); c.moveTo(7, 24); c.lineTo(8, 18); c.lineTo(10, 20); c.lineTo(12, 17); c.lineTo(14, 20); c.lineTo(16, 18); c.lineTo(17, 24); c.closePath(); c.fill(); c.strokeStyle = OUTL; c.lineWidth = 0.6; c.stroke(); break;
+        case 6: case 7: stalactites(i === 6 ? 2 : 3, '#4a1a24', 'rgba(255,100,120,0.2)'); c.fillStyle = 'rgba(200,40,60,0.8)'; c.beginPath(); c.ellipse(10 + R() * 4, 17, 0.8, 1.3, 0, 0, Math.PI * 2); c.fill(); break;
+        case 8: c.strokeStyle = '#c9b8b0'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(12, 0); c.lineTo(12, 6); c.stroke(); ell(12, 12, 4, 6.5, '#d8ccc0', 0.8); c.strokeStyle = 'rgba(120,100,90,0.6)'; c.lineWidth = 0.5; for (let y = 8; y < 18; y += 2.5) { c.beginPath(); c.moveTo(8.5, y); c.quadraticCurveTo(12, y + 1.5, 15.5, y); c.stroke(); } break;
+        case 9: for (let k = 0; k < 3; k++) { c.strokeStyle = '#6a1a28'; c.lineWidth = 1.2; const x = 6 + k * 6; c.beginPath(); c.moveTo(x, 0); c.bezierCurveTo(x + 3, 6, x - 3, 10, x, 14 + R() * 6); c.stroke(); } break;
+        case 10: c.strokeStyle = 'rgba(230,220,220,0.5)'; c.lineWidth = 0.6; for (let k = 0; k < 6; k++) { c.beginPath(); c.moveTo(0, k * 3); c.quadraticCurveTo(12, 6 + k * 2, 24, k * 3.5); c.stroke(); } break;
+        case 11: c.strokeStyle = '#8a3a4a'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(12, 0); c.lineTo(12, 7); c.stroke(); ell(12, 11, 3.4, 4.4, '#ff3b4e', 0.7); c.fillStyle = 'rgba(255,220,220,0.6)'; c.beginPath(); c.arc(11, 9.5, 1, 0, Math.PI * 2); c.fill(); break;
+      }
+      return;
+    }
 
     if (T.id === 'spilje') {
       switch (i) {
@@ -404,7 +535,8 @@ const Tiles = (() => {
     // ---- daleki sloj ----
     let [t, c] = mk('bgFar_' + T.id, 600, 280);
     let R = rng(42 + T.id.length);
-    const grads = { spilje: ['#0d1424', '#13283a', '#0f1d26'], rudnik: ['#140c1c', '#251632', '#170e1f'], dubine: ['#05121a', '#0a2a38', '#06161f'], kosturnica: ['#170a08', '#2a1410', '#1a0c09'] }[T.id];
+    const grads = { spilje: ['#0d1424', '#13283a', '#0f1d26'], rudnik: ['#140c1c', '#251632', '#170e1f'], dubine: ['#05121a', '#0a2a38', '#06161f'], kosturnica: ['#170a08', '#2a1410', '#1a0c09'],
+      gljive: ['#150a0c', '#2a1418', '#170b0d'], led: ['#0a1622', '#1a3448', '#0e1e2c'], gnijezdo: ['#120306', '#22070d', '#100206'] }[T.id];
     let g = c.createLinearGradient(0, 0, 0, 280);
     g.addColorStop(0, grads[0]); g.addColorStop(0.55, grads[1]); g.addColorStop(1, grads[2]);
     c.fillStyle = g; c.fillRect(0, 0, 600, 280);
@@ -434,6 +566,31 @@ const Tiles = (() => {
         falls.forEach(f => { const fg = c.createLinearGradient(0, 0, 0, 280); fg.addColorStop(0, 'rgba(120,220,240,0.25)'); fg.addColorStop(1, 'rgba(120,220,240,0.02)'); c.fillStyle = fg; c.fillRect(f.x, 0, f.w, 280); });
         bub.forEach(b => { c.strokeStyle = 'rgba(160,240,255,0.4)'; c.lineWidth = 0.6; c.beginPath(); c.arc(b.x, b.y, b.r, 0, Math.PI * 2); c.stroke(); });
         for (let i = 0; i < 10; i++) glowDot(c, (i * 61 + 17) % 600, 230 + (i * 37) % 45, 1.4, i % 2 ? '79,240,255' : '125,255,176', 0.7);
+      });
+    } else if (T.id === 'gljive') {
+      const sh = []; for (let i = 0; i < 9; i++) sh.push({ x: R() * 600, h: 70 + R() * 140, w: 26 + R() * 40, col: R() < 0.5 ? '255,138,61' : '255,95,162' });
+      wrap(c, 600, () => {
+        sh.forEach(m => {
+          c.fillStyle = '#2a1416'; c.fillRect(m.x - m.w * 0.12, 280 - m.h, m.w * 0.24, m.h);
+          c.beginPath(); c.ellipse(m.x, 280 - m.h, m.w, m.w * 0.45, 0, Math.PI, 0); c.closePath(); c.fillStyle = '#3a1a1e'; c.fill();
+          c.strokeStyle = `rgba(${m.col},0.35)`; c.lineWidth = 1.5; c.stroke();
+          for (let k = 0; k < 4; k++) glowDot(c, m.x - m.w * 0.6 + k * m.w * 0.4, 280 - m.h - m.w * 0.2, 1, m.col, 0.6);
+        });
+        for (let i = 0; i < 20; i++) glowDot(c, (i * 71 + 13) % 600, (i * 53 + 31) % 260, 0.8, i % 2 ? '255,138,61' : '255,95,162', 0.5);
+      });
+    } else if (T.id === 'led') {
+      const cols = []; for (let i = 0; i < 12; i++) cols.push({ x: R() * 600, w: 8 + R() * 18, h: 60 + R() * 140, top: R() < 0.5 });
+      wrap(c, 600, () => {
+        for (let k = 0; k < 3; k++) { const ag = c.createLinearGradient(0, 30 + k * 20, 0, 90 + k * 20); ag.addColorStop(0, 'rgba(120,255,210,0)'); ag.addColorStop(0.5, `rgba(${k % 2 ? '120,255,210' : '140,180,255'},0.12)`); ag.addColorStop(1, 'rgba(120,255,210,0)'); c.fillStyle = ag; c.beginPath(); c.moveTo(0, 40 + k * 22); for (let x = 0; x <= 600; x += 50) c.quadraticCurveTo(x + 25, 20 + k * 22 + Math.sin(x) * 14, x + 50, 40 + k * 22); c.lineTo(600, 110 + k * 22); c.lineTo(0, 110 + k * 22); c.closePath(); c.fill(); }
+        cols.forEach(s => { c.beginPath(); if (s.top) { c.moveTo(s.x - s.w, 0); c.lineTo(s.x + s.w, 0); c.lineTo(s.x, s.h); } else { c.moveTo(s.x - s.w, 280); c.lineTo(s.x + s.w, 280); c.lineTo(s.x, 280 - s.h * 0.7); } c.closePath(); c.fillStyle = 'rgba(120,170,210,0.22)'; c.fill(); c.strokeStyle = 'rgba(220,245,255,0.35)'; c.lineWidth = 1; c.stroke(); });
+        for (let i = 0; i < 30; i++) { c.fillStyle = 'rgba(255,255,255,0.5)'; c.beginPath(); c.arc((i * 47 + 9) % 600, (i * 89 + 7) % 280, 0.7, 0, Math.PI * 2); c.fill(); }
+      });
+    } else if (T.id === 'gnijezdo') {
+      const co = []; for (let i = 0; i < 8; i++) co.push({ x: R() * 600, y: 40 + R() * 160, s: 10 + R() * 18 });
+      wrap(c, 600, () => {
+        c.strokeStyle = 'rgba(200,170,170,0.12)'; c.lineWidth = 1;
+        for (let i = 0; i < 18; i++) { c.beginPath(); c.moveTo((i * 37) % 600, 0); c.quadraticCurveTo((i * 61) % 600, 140, (i * 37 + 80) % 600, 280); c.stroke(); }
+        co.forEach(o => { c.fillStyle = '#2a0c12'; c.beginPath(); c.ellipse(o.x, o.y, o.s * 0.6, o.s, 0, 0, Math.PI * 2); c.fill(); c.strokeStyle = 'rgba(255,59,78,0.3)'; c.lineWidth = 1.2; c.stroke(); glowDot(c, o.x, o.y, o.s * 0.08, '255,59,78', 0.35); });
       });
     } else {
       wrap(c, 600, () => {
@@ -486,6 +643,34 @@ const Tiles = (() => {
           }
         }
       });
+    } else if (T.id === 'gljive') {
+      wrap(c, 800, () => {
+        for (let i = 0; i < 4; i++) {
+          const x = i * 200 + 80, h = 150 + (i % 2) * 50, w = 60 + (i % 3) * 14;
+          c.fillStyle = '#241012'; c.fillRect(x - 10, 280 - h, 20, h);
+          c.beginPath(); c.ellipse(x, 280 - h, w, w * 0.4, 0, Math.PI, 0); c.closePath(); c.fillStyle = '#2e1418'; c.fill();
+          for (let k = 0; k < 6; k++) { c.strokeStyle = 'rgba(80,30,34,0.9)'; c.lineWidth = 1; c.beginPath(); c.moveTo(x - w + k * w / 3, 280 - h); c.lineTo(x, 280 - h + 6); c.stroke(); }
+        }
+      });
+    } else if (T.id === 'led') {
+      wrap(c, 800, () => {
+        for (let i = 0; i < 5; i++) {
+          const x = i * 160 + 60, w = 22 + (i % 3) * 8;
+          const pg = c.createLinearGradient(x - w, 0, x + w, 0);
+          pg.addColorStop(0, 'rgba(90,140,180,0.35)'); pg.addColorStop(0.5, 'rgba(170,220,250,0.3)'); pg.addColorStop(1, 'rgba(60,100,140,0.35)');
+          c.fillStyle = pg; c.beginPath(); c.moveTo(x - w, 0); c.lineTo(x - w * 0.6, 280); c.lineTo(x + w * 0.7, 280); c.lineTo(x + w, 0); c.closePath(); c.fill();
+          c.strokeStyle = 'rgba(230,248,255,0.25)'; c.lineWidth = 1; c.beginPath(); c.moveTo(x - w * 0.5, 0); c.lineTo(x - w * 0.3, 280); c.stroke();
+        }
+      });
+    } else if (T.id === 'gnijezdo') {
+      wrap(c, 800, () => {
+        for (let i = 0; i < 5; i++) {
+          const x = i * 160 + 60, w = 18 + (i % 3) * 8;
+          c.fillStyle = '#1c070b'; c.beginPath(); c.moveTo(x - w * 1.3, 0); c.quadraticCurveTo(x - w * 0.4, 140, x - w * 1.2, 280); c.lineTo(x + w * 1.1, 280); c.quadraticCurveTo(x + w * 0.3, 140, x + w * 1.3, 0); c.closePath(); c.fill();
+          c.strokeStyle = 'rgba(140,20,40,0.6)'; c.lineWidth = 1.4;
+          for (let k = 0; k < 3; k++) { c.beginPath(); c.moveTo(x - w * 0.6 + k * w * 0.5, 0); c.bezierCurveTo(x + 10 - k * 6, 90, x - 12 + k * 8, 180, x - w * 0.4 + k * w * 0.4, 280); c.stroke(); }
+        }
+      });
     } else {
       const pillars = []; for (let i = 0; i < 6; i++) pillars.push({ x: R() * 800, w: 18 + R() * 26 });
       const roots = []; for (let i = 0; i < 14; i++) roots.push({ x: R() * 800, h: 40 + R() * 90 });
@@ -514,6 +699,7 @@ const Tiles = (() => {
       canvasSheet(scene, 'planktiles_' + T.id, 3, 1, (c, i) => plankTile(c, i, T));
       canvasSheet(scene, 'decotiles_' + T.id, 12, 1, (c, i) => decoTile(c, i, T));
       canvasSheet(scene, 'spiketiles_' + T.id, 1, 1, (c) => spikeTile(c, T));
+      canvasSheet(scene, 'specialtiles_' + T.id, 2, 1, (c, i) => i === 0 ? bounceTile(c, T) : iceTile(c, T));
       canvasSheet(scene, 'crumble_' + T.id, 1, 1, (c) => crumbleTile(c, T));
       backgrounds(scene, T);
     },

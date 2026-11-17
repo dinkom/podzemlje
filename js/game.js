@@ -46,7 +46,7 @@ class GameScene extends Phaser.Scene {
     this.layer = Level.addCollision(this, L);
 
     // predmeti
-    this.items = []; this.cabinets = []; this.notes = []; this.checkpoints = []; this.crawlers = []; this.bats = []; this.spiders = [];
+    this.items = []; this.cabinets = []; this.notes = []; this.checkpoints = []; this.crawlers = []; this.bats = []; this.spiders = []; this.icicles = [];
     this.threads = this.add.graphics().setDepth(12);
     for (const o of L.objects) {
       if (o.type === 'cabinet') {
@@ -72,6 +72,8 @@ class GameScene extends Phaser.Scene {
         this.spawnBat(o);
       } else if (o.type === 'spider') {
         this.spawnSpider(o);
+      } else if (o.type === 'icicle') {
+        this.spawnIcicle(o);
       }
     }
     // vrata
@@ -147,6 +149,15 @@ class GameScene extends Phaser.Scene {
     this.ui = this.scene.get('UI');
     this.ui.bind(this);
     if (L.lightsOutKey && taken.has(L.lightsOutKey)) this.applyLightsOut(true);
+    // zid tame (završna potjera)
+    this.wall = null;
+    if (L.darkWall) {
+      this.wallG = this.add.graphics().setDepth(55);
+      this.wallEyes = [];
+      for (let i = 0; i < 7; i++) this.wallEyes.push(this.add.image(0, 0, 'oci_tihi').setScale(1 / RES).setDepth(56).setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
+      if (taken.has(L.darkWall.key)) this.startWall(this.player.x - 340, 2);
+    }
+    this.iceBurst = this.add.particles(0, 0, 'dot', { lifespan: 500, speed: { min: 40, max: 120 }, scale: { start: 0.5, end: 0 }, gravityY: 400, tint: [0xe8f8ff, 0xa6d8f2], emitting: false }).setDepth(16);
     if (!this.save.cp) this.ui.zoneCard(this.levelIndex + 1, L.name);
     if (!this.save.cp && this.levelIndex === 0) this.time.delayedCall(3200, () => this.ui.toast(this.ui.touchMode ? 'Lijevi palac: hodaj (malo pomakni = šuljaj se tiho).  Desno: skok, udarac, svjetiljka.' : 'A / D: hodaj (drži S za šuljanje)   ·   W / I: skok   ·   J: udarac   ·   K: svjetiljka   ·   L: radnja   ·   Esc: pauza', 5500));
     this.cameras.main.fadeIn(600, 0, 0, 0);
@@ -176,6 +187,87 @@ class GameScene extends Phaser.Scene {
     this.physics.add.collider(s, this.layer);
     const eyes = this.add.image(0, 0, 'oci_buba').setScale(1 / RES).setDepth(61).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.55);
     this.crawlers.push({ id: o.id, s, eyes, dir: Math.random() < 0.5 ? -1 : 1, hp: 2, hurtT: 0, alive: true });
+  }
+
+  // ---------------- ledenice ----------------
+  spawnIcicle(o) {
+    const top = o.y - TILE;
+    const s = this.add.image(o.x, top, 'ledenica').setOrigin(0.5, 0).setScale(1 / RES).setDepth(13);
+    this.icicles.push({ x: o.x, top, y: top, vy: 0, s, state: 'hang', t: 0 });
+  }
+
+  updateIcicles(dt) {
+    const st = this.st, p = this.player, g = this.L.grid;
+    for (const ic of this.icicles) {
+      if (ic.state === 'hang') {
+        const below = p.y - ic.top;
+        if (!st.hidden && !st.dead && Math.abs(p.x - ic.x) < 22 && below > 0 && below < 340) { ic.state = 'shake'; ic.t = 0.45; SFX.crack(Phaser.Math.Clamp((ic.x - p.x) / 200, -1, 1)); }
+      } else if (ic.state === 'shake') {
+        ic.t -= dt; ic.s.x = ic.x + (Math.random() - 0.5) * 1.4;
+        if (ic.t <= 0) { ic.state = 'fall'; ic.vy = 0; ic.s.x = ic.x; }
+      } else if (ic.state === 'fall') {
+        ic.vy += 900 * dt; ic.y += ic.vy * dt;
+        const tip = ic.y + 26;
+        ic.s.y = ic.y;
+        const hitP = !st.dead && !st.hidden && Math.abs(p.x - ic.x) < 9 && tip > p.body.y && ic.y < p.body.bottom;
+        const row = g[Math.floor(tip / TILE)];
+        const c = row && row[Math.floor(ic.x / TILE)];
+        if (hitP || c === '#' || c === '-' || c === 'I' || c === 'B' || c === '=' || tip > this.worldH) {
+          if (hitP && st.invul <= 0) this.hurt(Math.sign(p.x - ic.x) || 1);
+          ic.state = 'gone'; ic.t = 3; ic.s.setVisible(false);
+          this.iceBurst.emitParticleAt(ic.x, Math.min(tip, this.worldH), 12);
+          SFX.shatter(Phaser.Math.Clamp(0.3 - Math.abs(p.x - ic.x) / 1500, 0.05, 0.3), Phaser.Math.Clamp((ic.x - p.x) / 300, -1, 1));
+        }
+      } else if (ic.state === 'gone') {
+        ic.t -= dt;
+        if (ic.t <= 0) { ic.state = 'hang'; ic.y = ic.top; ic.s.setPosition(ic.x, ic.top).setVisible(true).setAlpha(0); this.tweens.add({ targets: ic.s, alpha: 1, duration: 600 }); }
+      }
+    }
+  }
+
+  // ---------------- zid tame ----------------
+  startWall(x, delay) {
+    if (this.wall) return;
+    this.wall = { x, delay, growlT: 0 };
+    SFX.wallGrowl(); Buzz([200, 80, 200]);
+    this.cameras.main.shake(800, 0.005);
+  }
+
+  updateWall(dt) {
+    const W = this.wall;
+    if (!W) return;
+    const D = this.L.darkWall, p = this.player, st = this.st;
+    if (W.delay > 0) W.delay -= dt;
+    else W.x = Math.min(D.stopX, W.x + D.speed * dt);
+    W.growlT -= dt;
+    if (W.growlT <= 0) { W.growlT = 2.2; SFX.wallGrowl(); }
+    // crtanje
+    const v = this.cameras.main.worldView, g = this.wallG, t = this.time.now / 1000;
+    g.clear();
+    if (W.x > v.x - 60) {
+      const top = v.y - 40, bot = v.bottom + 40;
+      g.fillStyle(0x000000, 0.97);
+      g.beginPath(); g.moveTo(v.x - 100, top);
+      for (let y = top; y <= bot; y += 12) g.lineTo(W.x + Math.sin(y * 0.07 + t * 3) * 10 + Math.sin(y * 0.19 - t * 5) * 5, y);
+      g.lineTo(v.x - 100, bot); g.closePath(); g.fillPath();
+      g.lineStyle(2, 0x6a1a5a, 0.6);
+      g.beginPath();
+      for (let y = top; y <= bot; y += 12) { const x = W.x + Math.sin(y * 0.07 + t * 3) * 10 + Math.sin(y * 0.19 - t * 5) * 5; y === top ? g.moveTo(x, y) : g.lineTo(x, y); }
+      g.strokePath();
+      for (let i = 0; i < 5; i++) {
+        const y = top + ((i * 97 + t * 30) % (bot - top)), len = 14 + Math.sin(t * 2 + i) * 10;
+        g.lineStyle(3, 0x000000, 0.95); g.beginPath(); g.moveTo(W.x, y); g.lineTo(W.x + len, y + Math.sin(t * 4 + i) * 6); g.strokePath();
+      }
+      this.wallEyes.forEach((e, i) => {
+        const y = v.y + 20 + i * (v.height - 40) / 6;
+        const blink = Math.sin(t * 1.3 + i * 1.7) > 0.93;
+        e.setVisible(true).setPosition(W.x - 14 - (i % 3) * 18, y + Math.sin(t + i) * 6).setAlpha(blink ? 0.1 : 0.9);
+      });
+    } else this.wallEyes.forEach(e => e.setVisible(false));
+    // blizina
+    const gap = p.x - W.x;
+    if (gap < 220 && !st.dead) this.cameras.main.shake(100, 0.0015 * (1 - gap / 220));
+    if (!st.dead && gap < 6) { if (st.hidden) { st.hidden = null; p.setVisible(true); this.peek.setVisible(false); } this.die('monster'); }
   }
 
   // ---------------- pauci ----------------
@@ -404,6 +496,8 @@ class GameScene extends Phaser.Scene {
     this.crawlers.forEach(c => this.updateCrawler(c, dt));
     this.bats.forEach(bt => this.updateBat(bt, dt));
     this.updateSpiders(dt);
+    this.updateIcicles(dt);
+    this.updateWall(dt);
     this.updateCrumbles(dt);
     if (!st.dead) this.checkSpikes();
     if (!st.dead) this.interactions(dt);
@@ -455,10 +549,19 @@ class GameScene extends Phaser.Scene {
     const wet = this.inWater(p.x, this.feet(p));
     if (wet && !st.wasWet && b.velocity.y > 60) { SFX.splash(0.25); this.noise(p.x, p.y, 160); }
     st.wasWet = wet;
+    // ispod nogu: gljiva-trampolin ili led
+    const gridR = this.L.grid[Math.floor((this.feet(p) + 2) / TILE)] || [];
+    const underC = [gridR[Math.floor((b.x + 1) / TILE)], gridR[Math.floor(p.x / TILE)], gridR[Math.floor((b.right - 1) / TILE)]];
+    if (ground && underC.includes('B') && b.velocity.y >= 0) {
+      b.setVelocityY(-620); st.jumping = false; st.coyote = 0; st.airVy = 0;
+      SFX.boing(); Buzz(25); this.noise(p.x, p.y, 140);
+      this.dust.emitParticleAt(p.x, this.feet(p), 6);
+    }
+    const onIce = ground && underC[1] === 'I';
     const sneak = Controls.sneak || K.S.isDown;
     st.sneak = sneak && dir !== 0;
     const target = dir * (wet ? 66 : (sneak && ground) ? 58 : 118);
-    if (st.lock <= 0) b.setVelocityX(Phaser.Math.Linear(b.velocity.x, target, Math.min(1, dt * (ground ? 16 : 12))));
+    if (st.lock <= 0) b.setVelocityX(Phaser.Math.Linear(b.velocity.x, target, Math.min(1, dt * (onIce ? 1.6 : ground ? 16 : 12))));
     if (dir !== 0 && st.atkT <= 0) st.face = dir;
     p.setFlipX(st.face < 0);
 
@@ -475,7 +578,7 @@ class GameScene extends Phaser.Scene {
     if (ground && !wet) {
       const g = this.L.grid, cx = Math.floor(p.x / TILE), fy = Math.floor((this.feet(p) + 4) / TILE);
       const under = g[fy] && g[fy][cx], row = g[fy - 1] || [];
-      const solidish = (c) => c === '#' || c === '-';
+      const solidish = (c) => c === '#' || c === '-';  // led i gljive nisu sigurno tlo
       const ur = g[fy] || [];
       if (solidish(under) && solidish(ur[cx - 1]) && solidish(ur[cx + 1]) && row[cx - 1] !== '^' && row[cx] !== '^' && row[cx + 1] !== '^') st.safe = { x: cx * TILE + TILE / 2, y: p.y };
     }
@@ -763,10 +866,10 @@ class GameScene extends Phaser.Scene {
       this.st.dead = true;
       this.exit = null;
       SFX.win();
-      this.cameras.main.fadeOut(1400, 230, 245, 255);
       const next = this.levelIndex + 1;
+      if (next >= Level.count) this.cameras.main.fadeOut(1400, 0, 0, 0); else this.cameras.main.fadeOut(1400, 230, 245, 255);
       this.time.delayedCall(1500, () => {
-        if (this.L.last) { Save.store({ ...Save.fresh(next - 1), done: true }); this.scene.stop('UI'); this.scene.start('End'); }
+        if (next >= Level.count) { Save.store({ ...Save.fresh(next - 1), done: true }); this.scene.stop('UI'); this.scene.start('End'); }
         else { Save.store(Save.fresh(next)); this.scene.restart(); }
       });
     }
@@ -804,6 +907,7 @@ class GameScene extends Phaser.Scene {
   }
 
   wakeTheSleeper(keyId) {
+    if (this.L.darkWall && this.L.darkWall.key === keyId) this.time.delayedCall(700, () => { this.ui.toast('Tama se pomaknula…', 2200); this.startWall(this.player.x - 300, 1.6); });
     const lo = this.L.lightsOutKey === keyId;
     if (lo) this.time.delayedCall(500, () => { this.applyLightsOut(false); this.ui.toast('Sve su se svijeće ugasile…', 2200); });
     const ms = this.monsters.filter(x => x.dormant === keyId && !x.spent);
@@ -893,7 +997,9 @@ class GameScene extends Phaser.Scene {
     if (this.dripT <= 0) {
       const [a, b] = this.T.drip;
       this.dripT = a + Math.random() * b;
-      if (this.T.id === 'kosturnica' && Math.random() < 0.25) SFX.bell(); else SFX.drip(Math.random() * 2 - 1);
+      if (this.T.id === 'kosturnica' && Math.random() < 0.25) SFX.bell();
+      else if (this.T.id === 'gnijezdo' && Math.random() < 0.45) SFX.heart(0.14);
+      else SFX.drip(Math.random() * 2 - 1);
     }
     // srce i napetost
     let near = 9999, chasing = false;
@@ -903,6 +1009,7 @@ class GameScene extends Phaser.Scene {
       if (d < near) near = d;
       if (m.state === 'chase') chasing = true;
     });
+    if (this.wall) { near = Math.min(near, Math.max(0, this.player.x - this.wall.x)); chasing = true; }
     const close = Phaser.Math.Clamp(1 - near / 320, 0, 1);
     SFX.tension(chasing ? Math.max(close, 0.6) : close * 0.7);
     if ((close > 0.05 || chasing) && !st.dead) {

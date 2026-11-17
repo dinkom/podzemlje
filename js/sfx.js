@@ -109,6 +109,10 @@ const SFX = (() => {
     hiss(pan = 0) { noise({ a: 0.02, d: 0.35, vol: 0.12, type: 'highpass', f: 3500, pan }); },
     creak() { tone({ type: 'sawtooth', f: 180, f2: 120, a: 0.02, d: 0.35, vol: 0.06 }); noise({ d: 0.3, vol: 0.06, type: 'bandpass', f: 900, q: 4 }); },
     crumble() { noise({ a: 0.01, d: 0.5, vol: 0.28, f: 1200, f2: 150 }); tone({ type: 'sine', f: 90, f2: 40, d: 0.3, vol: 0.18 }); },
+    boing() { tone({ type: 'sine', f: 180, f2: 620, a: 0.005, d: 0.28, vol: 0.2 }); tone({ type: 'triangle', f: 360, f2: 900, d: 0.2, vol: 0.06, delay: 0.03 }); },
+    crack(pan = 0) { noise({ d: 0.12, vol: 0.12, type: 'highpass', f: 2500, pan }); tone({ type: 'square', f: 1800, f2: 900, d: 0.05, vol: 0.04, pan }); },
+    shatter(vol = 0.25, pan = 0) { for (let i = 0; i < 4; i++) tone({ type: 'sine', f: 2200 + Math.random() * 2500, f2: 1500, d: 0.15, vol: vol * 0.15, pan, delay: i * 0.03 }); noise({ d: 0.25, vol, type: 'highpass', f: 3000, pan }); },
+    wallGrowl() { tone({ type: 'sawtooth', f: 46, f2: 38, a: 0.2, d: 1.6, vol: 0.18 }); noise({ a: 0.3, d: 1.5, vol: 0.18, f: 300, f2: 80 }); },
     bell() { [196, 392.5, 588].forEach((f, i) => tone({ type: 'sine', f, a: 0.01, d: 3, vol: 0.04 / (i + 1) })); },
     lightsOut() { noise({ a: 0.05, d: 1.2, vol: 0.25, type: 'lowpass', f: 900, f2: 100 }); tone({ type: 'sine', f: 220, f2: 55, a: 0.02, d: 1.6, vol: 0.2 }); },
     tension(v) { // 0..1 — pojačava dron kad je čudovište blizu

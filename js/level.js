@@ -1,6 +1,6 @@
 // Podzemlje — zone (razine)
 //   '#' stijena   '-' daska (prolazna odozdo)   '=' daska koja puca   '^' šiljci
-//   'D' vrata   '~' voda   '.' zrak
+//   'B' gljiva-trampolin   'I' led (sklizak)   'D' vrata   '~' voda   '.' zrak
 const Level = (() => {
 
   function grid(W, H) {
@@ -12,6 +12,9 @@ const Level = (() => {
       plat(x1, x2, y) { for (let x = x1; x <= x2; x++) g[y][x] = '-'; },
       spikes(x1, x2, y) { for (let x = x1; x <= x2; x++) g[y][x] = '^'; },
       crumble(x1, x2, y) { for (let x = x1; x <= x2; x++) g[y][x] = '='; },
+      bounce(x1, x2, y) { for (let x = x1; x <= x2; x++) g[y][x] = 'B'; },
+      ice(x1, x2, y) { for (let x = x1; x <= x2; x++) g[y][x] = 'I'; },
+      fill(x1, y1, x2, y2) { for (let y = y1; y <= y2; y++) for (let x = x1; x <= x2; x++) g[y][x] = '#'; },
     };
   }
   const at = (x, y) => ({ x: x * TILE + TILE / 2, y: (y + 1) * TILE }); // dno ćelije
@@ -280,21 +283,195 @@ const Level = (() => {
       { id: 'M4', ...at(250, 36), minX: 230 * TILE, maxX: 261 * TILE, cMin: 205 * TILE + 8, cMax: 262 * TILE + 8, dormant: 'K2' },
     ];
     return {
-      theme: 'kosturnica', W, H, grid: G.g, objects, monsters, doors: [door('D1', 151, 21), door('D2', 270, 21)], start: at(4, 13), lightsOutKey: 'K2', last: true,
+      theme: 'kosturnica', W, H, grid: G.g, objects, monsters, doors: [door('D1', 151, 21), door('D2', 270, 21)], start: at(4, 13), lightsOutKey: 'K2',
       notes: {
         N1: 'Ovdje leže svi koji su ga pokušali nadmudriti.\n\nSvijeće gore za njih.\nNe pitaj tko ih pali.',
         N2: 'Na srednjem katu hoda on.\nDolje spavaju drugi.\n\nKljuč za vrata leži na samom dnu.',
         N3: 'Ovaj ključ budi onoga koji spava dolje.\n\nTrči. Gore, desno, prema vratima.\nNe gledaj iza sebe.',
         N4: 'Mislio sam da je ovo kraj.\nNije.\n\nPosljednji ključ je u kripti ispod grobnice.',
         N5: 'Kad uzmeš ovaj ključ, sve će se svijeće ugasiti.\n\nTrči. Gore, desno.\nVrata su blizu.',
-        N6: 'Ako ovo čitaš, uspio si.\n\nIza ovih vrata je nebo.\nPozdravi ga od mene.',
+        N6: 'Mislio sam da je iza ovih vrata nebo.\nNije.\n\nPodzemlje ide još dublje.',
       },
     };
   }
 
-  const ZONES = [zone1, zone2, zone3, zone4];
 
-  const solid = (g, x, y, W, H) => (x < 0 || y < 0 || x >= W || y >= H) ? true : (g[y][x] === '#');
+  // ================= ZONA 5: GLJIVARNIK =================
+  function zone5() {
+    const W = 195, H = 44, G = grid(W, H), { carve, plat, spikes, crumble, bounce, fill } = G;
+    carve(2, 30, 20, 40);            // ulaz
+    carve(21, 22, 110, 40);          // gljivarnik
+    bounce(40, 41, 41);
+    plat(34, 46, 33); plat(48, 54, 31); plat(57, 62, 33); plat(64, 70, 31);
+    plat(72, 78, 33); bounce(75, 75, 33);
+    plat(70, 80, 25);
+    spikes(88, 89, 40);
+    carve(111, 37, 112, 40, 'D');
+    carve(113, 6, 175, 40);          // divovska špilja gljiva
+    bounce(120, 120, 41);
+    plat(117, 125, 33); bounce(124, 124, 33);
+    plat(121, 130, 25); bounce(128, 128, 25); crumble(121, 122, 25);
+    plat(125, 134, 17); bounce(126, 126, 17);
+    plat(118, 128, 9);
+    fill(113, 9, 117, 12);
+    plat(132, 137, 9); crumble(140, 142, 9); plat(145, 150, 9);
+    fill(152, 10, 175, 12);
+    spikes(146, 147, 40); spikes(160, 161, 40);
+    carve(176, 6, 177, 9, 'D'); carve(178, 4, 190, 9);
+    const objects = [
+      { type: 'checkpoint', id: 'C1', ...at(5, 40) }, { type: 'note', id: 'N1', ...at(10, 40) },
+      { type: 'crawler', id: 'b1', ...at(28, 40) }, { type: 'checkpoint', id: 'C2', ...at(35, 40) },
+      { type: 'battery', id: 'B1', ...at(44, 32) }, { type: 'spider', id: 's1', ...at(51, 22) }, { type: 'note', id: 'N2', ...at(60, 32) },
+      { type: 'spider', id: 's2', ...at(67, 22) }, { type: 'battery', id: 'B2', ...at(73, 24) }, { type: 'key', id: 'K1', ...at(78, 24) },
+      { type: 'cabinet', id: 'o1', ...at(50, 40) }, { type: 'cabinet', id: 'o2', ...at(66, 40) }, { type: 'cabinet', id: 'o3', ...at(84, 40) },
+      { type: 'cabinet', id: 'o4', ...at(98, 40) }, { type: 'crawler', id: 'b2', ...at(93, 40) }, { type: 'battery', id: 'B3', ...at(104, 40) },
+      { type: 'bat', id: 'w1', ...at(90, 23) },
+      // divovska špilja
+      { type: 'checkpoint', id: 'C3', ...at(115, 40) }, { type: 'note', id: 'N3', ...at(117, 40) },
+      { type: 'crawler', id: 'b3', ...at(140, 40) }, { type: 'battery', id: 'B4', ...at(150, 40) }, { type: 'crawler', id: 'b4', ...at(165, 40) },
+      { type: 'battery', id: 'B5', ...at(118, 32) }, { type: 'spider', id: 's3', ...at(123, 6) }, { type: 'spider', id: 's4', ...at(131, 6) },
+      { type: 'bat', id: 'w2', ...at(140, 20) }, { type: 'bat', id: 'w3', ...at(150, 14) }, { type: 'battery', id: 'B6', ...at(130, 16) },
+      { type: 'key', id: 'K2', ...at(114, 8) }, { type: 'battery', id: 'B7', ...at(116, 8) },
+      { type: 'battery', id: 'B8', ...at(135, 8) }, { type: 'spider', id: 's5', ...at(147, 6) },
+      { type: 'cabinet', id: 'o5', ...at(158, 9) }, { type: 'cabinet', id: 'o6', ...at(170, 9) },
+      { type: 'note', id: 'N4', ...at(181, 9) }, { type: 'exit', id: 'E', ...at(188, 9) },
+    ];
+    const monsters = [
+      { id: 'M1', ...at(75, 40), minX: 45 * TILE, maxX: 100 * TILE, cMin: 21 * TILE + 8, cMax: 110 * TILE },
+      { id: 'M2', ...at(104, 40), minX: 95 * TILE, maxX: 109 * TILE, cMin: 21 * TILE + 8, cMax: 110 * TILE, dormant: 'K1' },
+      { id: 'M3', ...at(165, 9), minX: 155 * TILE, maxX: 174 * TILE, cMin: 152 * TILE + 8, cMax: 175 * TILE + 8 },
+    ];
+    return {
+      theme: 'gljive', W, H, grid: G.g, objects, monsters, doors: [door('D1', 111, 37), door('D2', 176, 6)], start: at(4, 40),
+      notes: {
+        N1: 'Ovdje rastu gljive koje bacaju u zrak.\nStani na crveni klobuk i odletjet ćeš.\n\nAli on čuje kad padneš.',
+        N2: 'Gore, na najvišem klobuku, netko je ostavio ključ.\n\nZašto ga uvijek ostavljaju tako visoko?',
+        N3: 'Ova špilja nema stropa koji se vidi.\nGljive rastu jedna iznad druge, sve do vrha.',
+        N4: 'Iza gljiva je hladno.\nSve hladnije.\n\nDah mi se pretvara u maglu.',
+      },
+    };
+  }
+
+  // ================= ZONA 6: LEDENA PEĆINA =================
+  function zone6() {
+    const W = 220, H = 38, G = grid(W, H), { carve, plat, spikes, crumble, ice } = G;
+    carve(2, 14, 18, 24);            // ulaz
+    carve(19, 12, 100, 24);          // ledena dvorana
+    ice(28, 44, 25); spikes(45, 46, 24); ice(63, 75, 25);
+    plat(52, 56, 23); plat(78, 82, 23);
+    carve(96, 25, 100, 27);          // rupa prema ledenoj rijeci
+    carve(30, 28, 125, 33);          // ledena rijeka
+    ice(40, 110, 34); spikes(60, 61, 33); spikes(85, 86, 33);
+    carve(121, 14, 125, 27);         // okno gore
+    plat(121, 122, 32); plat(124, 125, 30); plat(121, 122, 28); plat(124, 125, 26);
+    carve(126, 12, 200, 24);         // druga dvorana
+    carve(128, 21, 129, 24, 'D');
+    ice(136, 150, 25); carve(151, 25, 153, 27); spikes(151, 153, 27);
+    carve(160, 4, 172, 11);          // ledeni toranj
+    [23, 15, 11].forEach(y => plat(160, 162, y)); crumble(160, 162, 19);
+    [21, 17, 13].forEach(y => plat(164, 166, y)); plat(164, 170, 9);
+    ice(176, 190, 25);
+    carve(201, 21, 202, 24, 'D'); carve(203, 14, 215, 24);
+    const objects = [
+      { type: 'checkpoint', id: 'C1', ...at(5, 24) }, { type: 'note', id: 'N1', ...at(10, 24) },
+      { type: 'icicle', id: 'i1', ...at(32, 12) }, { type: 'icicle', id: 'i2', ...at(38, 12) }, { type: 'battery', id: 'B1', ...at(54, 22) },
+      { type: 'cabinet', id: 'o1', ...at(50, 24) }, { type: 'icicle', id: 'i3', ...at(58, 12) }, { type: 'icicle', id: 'i4', ...at(68, 12) },
+      { type: 'cabinet', id: 'o2', ...at(70, 24) }, { type: 'battery', id: 'B2', ...at(80, 22) }, { type: 'icicle', id: 'i5', ...at(84, 12) },
+      { type: 'cabinet', id: 'o3', ...at(87, 24) }, { type: 'crawler', id: 'b1', ...at(57, 24) },
+      // ledena rijeka
+      { type: 'key', id: 'K1', ...at(32, 33) }, { type: 'cabinet', id: 'o4', ...at(36, 33) }, { type: 'battery', id: 'B3', ...at(38, 33) },
+      { type: 'icicle', id: 'i6', ...at(50, 28) }, { type: 'cabinet', id: 'o5', ...at(70, 33) }, { type: 'icicle', id: 'i7', ...at(75, 28) },
+      { type: 'crawler', id: 'b2', ...at(78, 33) }, { type: 'icicle', id: 'i8', ...at(92, 28) },
+      { type: 'checkpoint', id: 'C2', ...at(104, 33) }, { type: 'note', id: 'N2', ...at(106, 33) }, { type: 'cabinet', id: 'o6', ...at(100, 33) },
+      { type: 'battery', id: 'B4', ...at(124, 29) },
+      // druga dvorana
+      { type: 'checkpoint', id: 'C3', ...at(132, 24) }, { type: 'note', id: 'N3', ...at(134, 24) },
+      { type: 'icicle', id: 'i9', ...at(140, 12) }, { type: 'icicle', id: 'i10', ...at(146, 12) },
+      { type: 'battery', id: 'B5', ...at(161, 18) }, { type: 'icicle', id: 'i11', ...at(163, 4) }, { type: 'icicle', id: 'i12', ...at(167, 4) },
+      { type: 'battery', id: 'B6', ...at(165, 12) }, { type: 'key', id: 'K2', ...at(169, 8) }, { type: 'bat', id: 'w1', ...at(164, 6) },
+      { type: 'cabinet', id: 'o7', ...at(178, 24) }, { type: 'icicle', id: 'i13', ...at(184, 12) }, { type: 'cabinet', id: 'o8', ...at(193, 24) },
+      { type: 'crawler', id: 'b3', ...at(186, 24) },
+      { type: 'note', id: 'N4', ...at(208, 24) }, { type: 'exit', id: 'E', ...at(213, 24) },
+    ];
+    const monsters = [
+      { id: 'M1', ...at(80, 24), minX: 64 * TILE, maxX: 94 * TILE, cMin: 47 * TILE, cMax: 95 * TILE },
+      { id: 'M2', ...at(118, 33), minX: 100 * TILE, maxX: 124 * TILE, cMin: 30 * TILE + 8, cMax: 125 * TILE, dormant: 'K1' },
+      { id: 'M3', ...at(185, 24), minX: 175 * TILE, maxX: 198 * TILE, cMin: 154 * TILE, cMax: 200 * TILE + 8 },
+      { id: 'M4', ...at(199, 24), minX: 190 * TILE, maxX: 200 * TILE, cMin: 154 * TILE, cMax: 200 * TILE + 8, dormant: 'K2' },
+    ];
+    return {
+      theme: 'led', W, H, grid: G.g, objects, monsters, doors: [door('D1', 128, 21), door('D2', 201, 21)], start: at(4, 24),
+      notes: {
+        N1: 'Led je sklizak. Kad potrčiš, ne možeš odmah stati.\n\nA na kraju leda su šiljci.',
+        N2: 'Ledenice padaju kad prođeš ispod.\nSlušaj kako pucaju — onda bježi.',
+        N3: 'Drugi ključ visi na vrhu ledenog tornja.\nTamo gore ništa ne živi.\nOsim njih.',
+        N4: 'Toplo je odjednom.\nPreviše toplo.\n\nZidovi su meki i dišu.',
+      },
+    };
+  }
+
+  // ================= ZONA 7: GNIJEZDO =================
+  function zone7() {
+    const W = 262, H = 42, G = grid(W, H), { carve, plat, spikes, crumble, fill } = G;
+    carve(2, 20, 18, 30);            // ulaz
+    carve(19, 19, 100, 30);          // tuneli gnijezda
+    carve(21, 8, 30, 18);            // uspon
+    carve(31, 8, 55, 17);            // komora s ključem
+    [29, 25, 21].forEach(y => plat(22, 25, y)); [27, 23, 19].forEach(y => plat(27, 30, y));
+    spikes(38, 39, 17); spikes(46, 47, 17);
+    carve(60, 31, 66, 34); spikes(60, 66, 34); crumble(61, 63, 31); crumble(65, 66, 31);
+    carve(101, 27, 102, 30, 'D');
+    carve(103, 19, 248, 30);         // posljednji hodnik
+    carve(140, 31, 143, 34);         // spust
+    carve(118, 35, 170, 38);         // donja komora (ključ)
+    spikes(132, 133, 38); spikes(152, 153, 38);
+    carve(165, 31, 169, 34);         // uspon natrag
+    plat(165, 166, 37); plat(168, 169, 35); plat(168, 169, 33);
+    spikes(178, 179, 30);
+    carve(188, 31, 194, 33); spikes(188, 194, 33); crumble(189, 191, 31); crumble(193, 194, 31);
+    spikes(205, 206, 30);
+    fill(214, 19, 222, 27);          // niski prolaz
+    spikes(232, 233, 30);
+    carve(249, 27, 250, 30, 'D'); carve(251, 22, 258, 30);
+    const objects = [
+      { type: 'checkpoint', id: 'C1', ...at(5, 30) }, { type: 'note', id: 'N1', ...at(10, 30) },
+      { type: 'checkpoint', id: 'C2', ...at(33, 30) }, { type: 'battery', id: 'B1', ...at(23, 28) }, { type: 'spider', id: 's0', ...at(26, 8) },
+      { type: 'note', id: 'N2', ...at(34, 17) }, { type: 'spider', id: 's1', ...at(36, 8) }, { type: 'battery', id: 'B2', ...at(42, 17) },
+      { type: 'spider', id: 's2', ...at(44, 8) }, { type: 'spider', id: 's3', ...at(50, 8) }, { type: 'key', id: 'K1', ...at(53, 17) },
+      { type: 'cabinet', id: 'o0', ...at(45, 30) }, { type: 'crawler', id: 'b1', ...at(50, 30) },
+      { type: 'cabinet', id: 'o1', ...at(72, 30) }, { type: 'bat', id: 'w1', ...at(80, 20) }, { type: 'cabinet', id: 'o2', ...at(84, 30) },
+      { type: 'crawler', id: 'b2', ...at(90, 30) }, { type: 'cabinet', id: 'o3', ...at(96, 30) }, { type: 'battery', id: 'B3', ...at(68, 30) },
+      // posljednji hodnik
+      { type: 'checkpoint', id: 'C3', ...at(106, 30) }, { type: 'note', id: 'N3', ...at(108, 30) },
+      { type: 'cabinet', id: 'o4', ...at(112, 30) }, { type: 'cabinet', id: 'o5', ...at(124, 30) }, { type: 'cabinet', id: 'o6', ...at(134, 30) },
+      { type: 'spider', id: 's4', ...at(128, 19) }, { type: 'battery', id: 'B4', ...at(118, 30) },
+      { type: 'key', id: 'K2', ...at(120, 38) }, { type: 'note', id: 'N4', ...at(123, 38) }, { type: 'checkpoint', id: 'C4', ...at(146, 38) },
+      { type: 'battery', id: 'B5', ...at(148, 38) }, { type: 'crawler', id: 'b3', ...at(158, 38) },
+      { type: 'bat', id: 'w2', ...at(185, 20) }, { type: 'spider', id: 's5', ...at(200, 19) }, { type: 'battery', id: 'B6', ...at(210, 30) },
+      { type: 'spider', id: 's6', ...at(228, 19) }, { type: 'crawler', id: 'b4', ...at(240, 30) },
+      { type: 'note', id: 'N5', ...at(253, 30) }, { type: 'exit', id: 'E', ...at(256, 30) },
+    ];
+    const monsters = [
+      { id: 'M1', ...at(85, 30), minX: 70 * TILE, maxX: 98 * TILE, cMin: 67 * TILE + 8, cMax: 100 * TILE + 8 },
+      { id: 'M2', ...at(56, 30), minX: 34 * TILE, maxX: 58 * TILE, cMin: 19 * TILE + 8, cMax: 59 * TILE, dormant: 'K1' },
+      { id: 'M3', ...at(125, 30), minX: 110 * TILE, maxX: 137 * TILE, cMin: 103 * TILE + 8, cMax: 139 * TILE },
+    ];
+    return {
+      theme: 'gnijezdo', W, H, grid: G.g, objects, monsters, doors: [door('D1', 101, 27), door('D2', 249, 27)], start: at(4, 30),
+      darkWall: { key: 'K2', startX: 118 * TILE - 280, stopX: 249 * TILE - 30, speed: 88 },
+      notes: {
+        N1: 'Ovo je njihovo gnijezdo.\nOdavde dolaze svi.\n\nNe budi jaja.',
+        N2: 'Ključ je na kraju ove komore.\nA dolje, kod rupe, nešto se valja u snu.',
+        N3: 'Zadnja vrata. Zadnji ključ.\nLeži u komori ispod hodnika.\n\nKad ga uzmeš, tama će krenuti za tobom.\nNe staj.',
+        N4: 'Ovdje je sve počelo.\n\nTRČI.',
+        N5: 'Svjetlo.\nPravo svjetlo.\n\nIdi.',
+      },
+    };
+  }
+
+  const ZONES = [zone1, zone2, zone3, zone4, zone5, zone6, zone7];
+
+  const solid = (g, x, y, W, H) => (x < 0 || y < 0 || x >= W || y >= H) ? true : (g[y][x] === '#' || g[y][x] === 'I');
 
   // grafički slojevi (pločice 72px, skalirane na 1/3)
   function addVisuals(scene, L) {
@@ -305,8 +482,9 @@ const Level = (() => {
     const plankTs = map.addTilesetImage('plank', 'planktiles_' + T.id, TPX, TPX, 0, 0, 100);
     const decoTs = map.addTilesetImage('deco', 'decotiles_' + T.id, TPX, TPX, 0, 0, 200);
     const spikeTs = map.addTilesetImage('spike', 'spiketiles_' + T.id, TPX, TPX, 0, 0, 150);
+    const specTs = map.addTilesetImage('special', 'specialtiles_' + T.id, TPX, TPX, 0, 0, 160);
     const deco = map.createBlankLayer('deco', decoTs, 0, 0);
-    const vis = map.createBlankLayer('vis', [rockTs, plankTs, spikeTs], 0, 0);
+    const vis = map.createBlankLayer('vis', [rockTs, plankTs, spikeTs, specTs], 0, 0);
     const glows = [];
     const air = (ch) => ch === '.' || ch === '~';
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -316,6 +494,10 @@ const Level = (() => {
         vis.putTileAt(m * 3 + Math.floor(R() * 3), x, y);
       } else if (ch === '^') {
         vis.putTileAt(150, x, y);
+      } else if (ch === 'B') {
+        vis.putTileAt(160, x, y);
+      } else if (ch === 'I') {
+        vis.putTileAt(161, x, y);
       } else if (ch === '-') {
         const l = g[y][x - 1] === '-', r = g[y][x + 1] === '-';
         vis.putTileAt(100 + (!l ? 0 : !r ? 2 : 1), x, y);
@@ -330,7 +512,7 @@ const Level = (() => {
           const roll = R();
           const d = roll < 0.45 ? 6 + (R() < 0.5 ? 0 : 1) : roll < 0.75 ? 8 + (R() < 0.7 ? 0 : 1) : roll < 0.88 ? 10 : 11;
           deco.putTileAt(200 + d, x, y);
-          if (T.id === 'dubine' && d === 8) glows.push({ x: x * TILE + 12, y: y * TILE + 12, col: T.glow[0] });
+          if ((T.ceilGlow ?? (T.id === 'dubine' ? 8 : -1)) === d) glows.push({ x: x * TILE + 12, y: y * TILE + 12, col: T.glow[d % 2] });
         }
       }
     }
@@ -341,7 +523,7 @@ const Level = (() => {
 
   // kolizijski sloj (24px, nevidljiv)
   function addCollision(scene, L) {
-    const data = L.grid.map(row => row.map(c => c === '#' ? 0 : (c === '-' || c === '=') ? 1 : c === 'D' ? 2 : -1));
+    const data = L.grid.map(row => row.map(c => (c === '#' || c === 'B' || c === 'I') ? 0 : (c === '-' || c === '=') ? 1 : c === 'D' ? 2 : -1));
     const map = scene.make.tilemap({ data, tileWidth: TILE, tileHeight: TILE });
     const ts = map.addTilesetImage('col', 'coltiles', TILE, TILE, 0, 0);
     const layer = map.createLayer(0, ts, 0, 0);

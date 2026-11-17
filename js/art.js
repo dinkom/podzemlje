@@ -43,6 +43,20 @@ const Art = (() => {
   function drawHero(c, p) {
     const b = p.bob || 0;
     c.lineWidth = 1;
+    if (p.fly !== undefined) {
+      // raširena krilca (završna animacija)
+      const f = p.fly;
+      [-1, 1].forEach(side => {
+        c.beginPath();
+        c.moveTo(16 + side * 2.5, 16 + b);
+        c.quadraticCurveTo(16 + side * 15, 3 - f * 4 + b, 16 + side * 15.5, 13 - f * 2 + b);
+        c.quadraticCurveTo(16 + side * 12, 22 + f * 2 + b, 16 + side * 2.5, 20 + b);
+        c.closePath();
+        c.fillStyle = side < 0 ? '#a891d0' : '#c4b2e6'; c.fill(); c.strokeStyle = OUT; c.lineWidth = 0.9; c.stroke();
+        ell(c, 16 + side * 10, 11 - f * 2 + b, 2.2, 1.7, '#7f68b5', null);
+        ell(c, 16 + side * 10, 11 - f * 2 + b, 0.9, 0.8, '#f0d98a', null);
+      });
+    }
     // krilca iza leđa
     c.beginPath();
     c.moveTo(12, 16 + b);
@@ -151,6 +165,8 @@ const Art = (() => {
     F.push({ name: 'fall', bob: 0, legA: 2, legB: -2, liftA: 0.5, liftB: 0.5, cloak: -1, ant: -1.5 });
     F.push({ name: 'attack', bob: 0, legA: 2.5, legB: -2, liftA: 0, liftB: 0, cloak: 1, ant: 1.5, arm: 'attack' });
     F.push({ name: 'dark', bob: 0, legA: 0, legB: 0, liftA: 0, liftB: 0, cloak: 0, ant: 0, lamp: false });
+    F.push({ name: 'fly0', bob: 0, legA: 1, legB: -1, liftA: 2.5, liftB: 2, cloak: -1.5, ant: -1.5, fly: 1, lamp: false });
+    F.push({ name: 'fly1', bob: 0.6, legA: 1.5, legB: -1.5, liftA: 2, liftB: 1.5, cloak: -0.5, ant: -0.5, fly: -0.6, lamp: false });
     sheet(scene, 'hero', 32, 32, F, drawHero);
   }
 
@@ -365,6 +381,15 @@ const Art = (() => {
     sheet(scene, 'pauk', 24, 20, [{ name: 'p0', k: 0.8 }, { name: 'p1', k: -0.8 }], drawSpider);
   }
 
+  function icicleFrames(scene) {
+    sheet(scene, 'ledenica', 10, 26, ['l'], (c) => {
+      c.beginPath(); c.moveTo(0.5, 0); c.lineTo(9.5, 0); c.lineTo(6.5, 10); c.lineTo(5, 25.5); c.lineTo(3.4, 11); c.closePath();
+      const g = c.createLinearGradient(0, 0, 10, 0); g.addColorStop(0, '#e8f8ff'); g.addColorStop(0.5, '#a6d8f2'); g.addColorStop(1, '#6aa6cc');
+      c.fillStyle = g; c.fill(); c.strokeStyle = OUT; c.lineWidth = 0.8; c.stroke();
+      line(c, [[3, 1.5], [4.6, 18]], 'rgba(255,255,255,0.8)', 0.7);
+    });
+  }
+
   // ---------------- PREDMETI ----------------
   function objects(scene) {
     // ormar za skrivanje
@@ -553,7 +578,7 @@ const Art = (() => {
 
   return {
     generate(scene) {
-      heroFrames(scene); tihiFrames(scene); bugFrames(scene); batFrames(scene); spiderFrames(scene);
+      heroFrames(scene); tihiFrames(scene); bugFrames(scene); batFrames(scene); spiderFrames(scene); icicleFrames(scene);
       objects(scene); lights(scene); face(scene);
     },
   };
