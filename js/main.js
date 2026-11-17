@@ -77,6 +77,13 @@ class TitleScene extends Phaser.Scene {
     if (act === 'back') { this.mode = 'main'; this.sel = 0; this.build(); return; }
     if (act === 'zones') { this.mode = 'zones'; this.sel = 0; this.build(); return; }
     if (act === 'locked') return;
+    if (act === 'install') {
+      if (!installEvt) return;
+      const ev = installEvt;
+      ev.prompt();
+      ev.userChoice.then(() => { installEvt = null; this.build(); }).catch(() => {});
+      return;
+    }
     this.starting = true;
     if (act === 'new') Save.clear();
     if (act.startsWith('zone:')) Save.store(Save.fresh(+act.slice(5)));
@@ -143,6 +150,7 @@ class TitleScene extends Phaser.Scene {
       if (canPick) opts.push(['Odaberi zonu', 'zones']);
       if (has) opts.push(['Nova igra', 'askNew']);
       else opts.push([prog.done ? 'Igraj ponovno' : prog.max > 0 ? 'Nova igra' : 'Igraj', 'new']);
+      if (installEvt && !isStandalone()) opts.push(['Instaliraj igru', 'install']);
     }
     const sub = this.add.text(w / 2, h * 0.26 + 44 * u, subTxt, { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(15 * u) + 'px', color: this.mode === 'confirm' ? '#f0c08a' : '#9fb3c8' }).setOrigin(0.5);
     c.add([title, sub]);
@@ -285,6 +293,13 @@ class EndScene extends Phaser.Scene {
     if (this.menuBtn && this.menuBtn.getBounds().contains(p.x, p.y)) { SFX.click(); this.scene.start('Title'); }
   }
 }
+
+// Instalacija kao aplikacija: Chrome javi kad je moguća, a mi pokažemo svoj gumb u izborniku
+let installEvt = null;
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+const refreshTitle = () => { const t = window.game && game.scene.getScene('Title'); if (t && t.sys.isActive()) t.build(); };
+window.addEventListener('beforeinstallprompt', (e) => { installEvt = e; refreshTitle(); });
+window.addEventListener('appinstalled', () => { installEvt = null; refreshTitle(); });
 
 Dev.checkUrl().then(() => { const t = game.scene.getScene('Title'); if (t && t.sys.isActive()) t.build(); });
 
