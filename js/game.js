@@ -681,7 +681,7 @@ class GameScene extends Phaser.Scene {
     this.bats.forEach(bt => { if (bt.alive && Math.hypot(bt.x - x, bt.y - y) < r * 0.6) this.wakeBat(bt); });
     this.monsters.forEach(m => {
       if (!m.active || this.st.hidden) return;
-      if (Math.abs(m.s.x - x) < r && Math.abs(this.feet(m.s) - this.feet(this.player)) < 64 && m.state !== 'chase') this.startChase(m);
+      if (Math.abs(m.s.x - x) < r && Math.abs(this.feet(m.s) - this.feet(this.player)) < 64 && m.state !== 'chase' && x > m.cMin - 30 && x < m.cMax + 30) this.startChase(m);
     });
   }
 
@@ -709,8 +709,11 @@ class GameScene extends Phaser.Scene {
     const same = Math.abs(this.feet(s) - this.feet(p)) < 62;
     const facing = Math.sign(dx) === m.dir;
     const visible = !st.hidden && !st.dead;
-    const sees = visible && same && ((st.flash && adx < 270) || (facing && adx < 115) || adx < 55);
-    m.sawT = (sees || (m.state === 'chase' && visible && same && adx < 380)) ? 0 : (m.sawT || 0) + dt;
+    // Tihi lovi samo u svom području — igrač izvan njega nije meta (inače stoji na rubu kao zamrznut)
+    const inArea = p.x > m.cMin - 30 && p.x < m.cMax + 30;
+    const sees = visible && same && inArea && ((st.flash && adx < 270) || (facing && adx < 115) || adx < 55);
+    const track = visible && same && inArea && adx < 380;
+    m.sawT = (sees || (m.state === 'chase' && track)) ? 0 : (m.sawT || 0) + dt;
     m.lungeCd = Math.max(0, (m.lungeCd || 0) - dt); m.lungeT = Math.max(0, (m.lungeT || 0) - dt);
     if (m.state === 'inspect') {
       if (!st.hidden) { this.startChase(m); }
@@ -730,9 +733,9 @@ class GameScene extends Phaser.Scene {
     if (m.state === 'patrol') {
       if (sees) this.startChase(m);
     } else if (m.state === 'chase') {
-      if (visible && same && adx < 380) { m.lastX = p.x; m.loseT = 0; }
+      if (track) { m.lastX = p.x; m.loseT = 0; }
       else m.loseT += dt;
-      if (Math.abs(m.lastX - s.x) < 10 && !(visible && same)) { m.state = 'search'; m.searchT = 4.5; m.flipT = 0.7; }
+      if (Math.abs(Phaser.Math.Clamp(m.lastX, m.cMin, m.cMax) - s.x) < 10 && !track) { m.state = 'search'; m.searchT = 4.5; m.flipT = 0.7; }
       if (m.loseT > 3.2) { m.state = 'search'; m.searchT = 4.5; m.flipT = 0.7; }
     } else if (m.state === 'search') {
       m.searchT -= dt; m.flipT -= dt;
