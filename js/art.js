@@ -577,8 +577,12 @@ const Art = (() => {
     t.refresh();
   }
 
+  const extra = [];
   return {
+    sheet, ell, line, limb, radial,
+    add(fn) { extra.push(fn); },   // drugi svjetovi dodaju svoje likove (suma.js …)
     generate(scene) {
+      extra.forEach(fn => fn(scene));
       heroFrames(scene); tihiFrames(scene); bugFrames(scene); batFrames(scene); spiderFrames(scene); icicleFrames(scene);
       objects(scene); lights(scene); face(scene);
     },

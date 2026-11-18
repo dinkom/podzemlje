@@ -148,6 +148,17 @@ const SFX = (() => {
       noise({ a: 0.005, d: 0.8, vol: 0.4, type: 'bandpass', f: 1800, f2: 600, q: 1.5 });
       tone({ type: 'sine', f: 50, f2: 30, d: 0.9, vol: 0.5 });
     },
+    // ---- Šuma ----
+    cricket(pan = 0) { const f = 4200 + Math.random() * 600; for (let i = 0; i < 3; i++) tone({ type: 'sine', f, f2: f * 0.98, a: 0.004, d: 0.035, vol: 0.025, pan, delay: i * 0.07 }); },
+    frog(pan = 0) { const f = 110 + Math.random() * 40; tone({ type: 'square', f, f2: f * 0.7, a: 0.01, d: 0.12, vol: 0.05, pan }); tone({ type: 'square', f: f * 1.1, f2: f * 0.8, a: 0.01, d: 0.1, vol: 0.04, pan, delay: 0.16 }); },
+    squelch(vol = 0.2) { noise({ a: 0.01, d: 0.22, vol, type: 'lowpass', f: 500, f2: 120, q: 3 }); tone({ type: 'sine', f: 140, f2: 60, d: 0.14, vol: vol * 0.5 }); },
+    rustle(vol = 0.15) { noise({ a: 0.02, d: 0.25, vol, type: 'bandpass', f: 3200, f2: 1800, q: 0.8 }); noise({ d: 0.15, vol: vol * 0.6, type: 'highpass', f: 5000, delay: 0.08 }); },
+    chitter(vol = 0.3, pan = 0) { for (let i = 0; i < 6; i++) tone({ type: 'square', f: 1400 + Math.random() * 900, f2: 700, d: 0.03, vol: vol * 0.12, pan, delay: i * 0.045 }); noise({ d: 0.3, vol: vol * 0.4, type: 'highpass', f: 2800, pan }); },
+    wispZap() { tone({ type: 'sine', f: 1600, f2: 120, a: 0.01, d: 0.7, vol: 0.18 }); tone({ type: 'triangle', f: 2400, f2: 300, d: 0.5, vol: 0.06, delay: 0.05 }); noise({ d: 0.5, vol: 0.12, type: 'bandpass', f: 3000, f2: 400, q: 2 }); },
+    screech() {
+      tone({ type: 'sawtooth', f: 1300, f2: 700, a: 0.02, d: 0.6, vol: 0.12 }); tone({ type: 'sawtooth', f: 1380, f2: 760, a: 0.02, d: 0.6, vol: 0.1 });
+      noise({ a: 0.01, d: 0.6, vol: 0.3, type: 'bandpass', f: 3000, f2: 1500, q: 2 });
+    },
     win() { [392, 523, 659, 784].forEach((f, i) => tone({ type: 'triangle', f, a: 0.05, d: 1.4, vol: 0.06, delay: i * 0.25 })); },
   };
 })();

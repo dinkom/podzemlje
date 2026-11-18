@@ -323,7 +323,7 @@ class UIScene extends Phaser.Scene {
           btn(dx, yn(7), 210, 27, 'Isključi DEV', 'devoff', 13, '#f08a7a');
         }
         if (!this.touchMode) {
-          const keys = 'A / D — hodanje        S (drži) — šuljanje        W / I / razmak — skok\nJ — udarac        K — svjetiljka        L — radnja (sakrij se, pročitaj, otključaj)        Esc — pauza';
+          const keys = 'A / D — hodanje        S (drži) — šuljanje        W / I / razmak — skok (drži u zraku = lebdenje)\nJ — udarac        K — svjetiljka        L — radnja (sakrij se, pročitaj, otključaj)        Esc — pauza';
           ov.c.add(this.add.text(w / 2, h * 0.9, keys, { fontFamily: FONT, fontSize: Math.round(12 * u) + 'px', color: '#9fb3c8', align: 'center', lineSpacing: 8 * u }).setOrigin(0.5));
         }
       } else if (page === 'zones') {
@@ -381,9 +381,9 @@ class UIScene extends Phaser.Scene {
     };
   }
 
-  jumpscare(done) {
+  jumpscare(done, tex = 'lice') {
     const w = this.scale.width, h = this.scale.height;
-    const img = this.add.image(w / 2, h / 2, 'lice').setDepth(100);
+    const img = this.add.image(w / 2, h / 2, tex).setDepth(100);
     const s = h / 512 * 1.1;
     img.setScale(s * 0.6);
     const red = this.add.rectangle(0, 0, w, h, 0xff2a1a, 0.5).setOrigin(0).setDepth(101).setBlendMode(Phaser.BlendModes.ADD);

@@ -62,6 +62,8 @@ const THEMES = {
 };
 
 const Tiles = (() => {
+  // dodatne teme (npr. Šuma) se priključuju preko kuka — vidi suma.js
+  const HOOKS = {};
   function rng(seed) {
     return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   }
@@ -113,6 +115,7 @@ const Tiles = (() => {
       c.strokeStyle = 'rgba(159,243,255,0.14)'; c.lineWidth = 0.7;
       for (let k = 0; k < 3; k++) { const x = R() * 24; c.beginPath(); c.moveTo(x, R() * 8); c.lineTo(x + (R() - 0.5), 10 + R() * 14); c.stroke(); }
     }
+    if (HOOKS[T.id] && HOOKS[T.id].extra) HOOKS[T.id].extra(c, R);
     if (T.extra === 'spores') {
       for (let k = 0; k < 3; k++) { c.fillStyle = R() < 0.5 ? 'rgba(255,150,80,0.35)' : 'rgba(255,110,170,0.3)'; c.beginPath(); c.arc(R() * 24, R() * 24, 0.6 + R() * 0.8, 0, Math.PI * 2); c.fill(); }
     }
@@ -136,10 +139,10 @@ const Tiles = (() => {
     if (lf) { c.fillStyle = T.rimL; c.fillRect(0, 0, 2.2, 24); }
     if (rt) { c.fillStyle = 'rgba(8,6,10,0.45)'; c.fillRect(21.5, 0, 2.5, 24); }
     if (dn) { c.fillStyle = 'rgba(6,5,8,0.55)'; c.fillRect(0, 20.5, 24, 3.5); }
-    if (up) surfaceTop(c, R, T);
+    if (up) (HOOKS[T.id] && HOOKS[T.id].surfaceTop ? HOOKS[T.id].surfaceTop : surfaceTop)(c, R, T);
     c.restore();
     c.lineJoin = 'round';
-    if (up) surfaceOver(c, R, T);
+    if (up) (HOOKS[T.id] && HOOKS[T.id].surfaceOver ? HOOKS[T.id].surfaceOver : surfaceOver)(c, R, T);
     if (dn && R() < (T.surface === 'algae' ? 0.9 : 0.6)) {
       c.fillStyle = T.surface === 'ash' ? 'rgba(90,70,55,0.5)' : 'rgba(150,200,230,0.5)';
       c.beginPath(); c.ellipse(6 + R() * 12, 23.2, 0.8, 1.2, 0, 0, Math.PI * 2); c.fill();
@@ -208,6 +211,7 @@ const Tiles = (() => {
   }
 
   function plankTile(c, kind, T) { // 0 lijevi kraj, 1 sredina, 2 desni kraj
+    if (HOOKS[T.id] && HOOKS[T.id].plank) return HOOKS[T.id].plank(c, kind, T, OUTL);
     const g = c.createLinearGradient(0, 0, 0, 7);
     g.addColorStop(0, T.plank[0]); g.addColorStop(1, T.plank[1]);
     c.fillStyle = g;
@@ -235,7 +239,7 @@ const Tiles = (() => {
 
   // šiljci (opasni) — boja po temi
   function spikeTile(c, T) {
-    const cols = { spilje: ['#8b97ab', '#4b5568'], rudnik: ['#d39bff', '#7a3fb5'], dubine: ['#9fe6e0', '#2f6f78'], kosturnica: ['#efe6d0', '#9a8a70'], gljive: ['#f0c8a0', '#8a4a3a'], led: ['#f2fbff', '#7fb0d0'], gnijezdo: ['#efe6d0', '#8a2a3a'] }[T.id];
+    const cols = (HOOKS[T.id] && HOOKS[T.id].spikeCols) || { spilje: ['#8b97ab', '#4b5568'], rudnik: ['#d39bff', '#7a3fb5'], dubine: ['#9fe6e0', '#2f6f78'], kosturnica: ['#efe6d0', '#9a8a70'], gljive: ['#f0c8a0', '#8a4a3a'], led: ['#f2fbff', '#7fb0d0'], gnijezdo: ['#efe6d0', '#8a2a3a'] }[T.id];
     for (let i = 0; i < 4; i++) {
       const x = 3 + i * 6, h = 13 + (i % 2) * 4;
       c.beginPath(); c.moveTo(x - 3, 24); c.lineTo(x, 24 - h); c.lineTo(x + 3, 24); c.closePath();
@@ -252,6 +256,14 @@ const Tiles = (() => {
     c.fillStyle = g; c.fill(); c.strokeStyle = OUTL; c.lineWidth = 1; c.stroke();
     c.fillStyle = '#fff4e8'; [[5, 5, 1.6], [12, 3, 1.9], [19, 5.5, 1.5], [9, 8, 1], [16, 8.4, 1.1]].forEach(([x, y, r]) => { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); });
     c.fillStyle = 'rgba(255,220,180,0.5)'; c.fillRect(1, 10.5, 22, 1.2);
+  }
+  // kora debla (pozadina, kroz nju se prolazi)
+  function barkTile(c, T) {
+    const g = c.createLinearGradient(0, 0, 24, 0); g.addColorStop(0, '#1c140e'); g.addColorStop(0.45, '#3a2c20'); g.addColorStop(1, '#16100b');
+    c.fillStyle = g; c.fillRect(0, 0, 24, 24);
+    c.strokeStyle = 'rgba(10,6,3,0.7)'; c.lineWidth = 0.8;
+    [4, 9, 14, 19].forEach((x, k) => { c.beginPath(); c.moveTo(x, 0); c.bezierCurveTo(x + 1.5, 8, x - 1.5, 16, x + (k % 2 ? 1 : -1), 24); c.stroke(); });
+    c.strokeStyle = 'rgba(150,170,200,0.12)'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(7, 0); c.lineTo(7.5, 24); c.stroke();
   }
   // led
   function iceTile(c, T) {
@@ -296,6 +308,7 @@ const Tiles = (() => {
       c.fillStyle = light; c.beginPath(); c.moveTo(x - w * 0.3, base); c.lineTo(x - w * 0.2, base - h * 0.8); c.lineTo(x + w * 0.1, base - h * 0.9); c.lineTo(x + w * 0.1, base); c.closePath(); c.fill();
     };
 
+    if (HOOKS[T.id] && HOOKS[T.id].deco) { HOOKS[T.id].deco(c, i, T, { R, ell, tri, stalactites, cobweb, chain, crystal, OUTL }); return; }
     if (T.id === 'gljive') {
       const shroom = (x, h, w, cap, spots) => {
         c.strokeStyle = OUTL; c.lineWidth = 2.4; c.beginPath(); c.moveTo(x, 24); c.lineTo(x, 24 - h); c.stroke();
@@ -535,6 +548,15 @@ const Tiles = (() => {
     // ---- daleki sloj ----
     let [t, c] = mk('bgFar_' + T.id, 600, 280);
     let R = rng(42 + T.id.length);
+    const H = HOOKS[T.id];
+    if (H && H.bgFar) {
+      H.bgFar(c, R, { wrap: (fn) => wrap(c, 600, fn), glowDot: (...a) => glowDot(c, ...a) });
+      t.refresh();
+      [t, c] = mk('bgMid_' + T.id, 800, 280);
+      H.bgMid(c, rng(7 + T.id.length), { wrap: (fn) => wrap(c, 800, fn), glowDot: (...a) => glowDot(c, ...a) });
+      t.refresh();
+      return;
+    }
     const grads = { spilje: ['#0d1424', '#13283a', '#0f1d26'], rudnik: ['#140c1c', '#251632', '#170e1f'], dubine: ['#05121a', '#0a2a38', '#06161f'], kosturnica: ['#170a08', '#2a1410', '#1a0c09'],
       gljive: ['#150a0c', '#2a1418', '#170b0d'], led: ['#0a1622', '#1a3448', '#0e1e2c'], gnijezdo: ['#120306', '#22070d', '#100206'] }[T.id];
     let g = c.createLinearGradient(0, 0, 0, 280);
@@ -688,6 +710,7 @@ const Tiles = (() => {
 
   return {
     rng,
+    hook(id, h) { HOOKS[id] = h; },
     // zajedničko
     generate(scene) {
       const t = scene.textures.createCanvas('coltiles', TILE * 3, TILE); t.refresh();
@@ -699,7 +722,7 @@ const Tiles = (() => {
       canvasSheet(scene, 'planktiles_' + T.id, 3, 1, (c, i) => plankTile(c, i, T));
       canvasSheet(scene, 'decotiles_' + T.id, 12, 1, (c, i) => decoTile(c, i, T));
       canvasSheet(scene, 'spiketiles_' + T.id, 1, 1, (c) => spikeTile(c, T));
-      canvasSheet(scene, 'specialtiles_' + T.id, 2, 1, (c, i) => i === 0 ? bounceTile(c, T) : iceTile(c, T));
+      canvasSheet(scene, 'specialtiles_' + T.id, 3, 1, (c, i) => i === 0 ? bounceTile(c, T) : i === 1 ? iceTile(c, T) : barkTile(c, T));
       canvasSheet(scene, 'crumble_' + T.id, 1, 1, (c) => crumbleTile(c, T));
       backgrounds(scene, T);
     },

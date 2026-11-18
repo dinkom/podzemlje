@@ -477,6 +477,10 @@ const Level = (() => {
     { id: 'grad', name: 'Grad', zones: [] },
   ];
   const worldOf = (i) => WORLDS.findIndex(w => w.zones.includes(i));
+  // drugi svjetovi (suma.js, grad.js) dodaju svoje zone ovdje
+  function addZones(world, fns) {
+    fns.forEach(fn => { WORLDS[world].zones.push(ZONES.length); ZONES.push(fn); });
+  }
 
   const solid = (g, x, y, W, H) => (x < 0 || y < 0 || x >= W || y >= H) ? true : (g[y][x] === '#' || g[y][x] === 'I');
 
@@ -491,6 +495,7 @@ const Level = (() => {
     const spikeTs = map.addTilesetImage('spike', 'spiketiles_' + T.id, TPX, TPX, 0, 0, 150);
     const specTs = map.addTilesetImage('special', 'specialtiles_' + T.id, TPX, TPX, 0, 0, 160);
     const deco = map.createBlankLayer('deco', decoTs, 0, 0);
+    const trunkL = map.createBlankLayer('trunks', specTs, 0, 0);
     const vis = map.createBlankLayer('vis', [rockTs, plankTs, spikeTs, specTs], 0, 0);
     const glows = [];
     const air = (ch) => ch === '.' || ch === '~';
@@ -523,14 +528,15 @@ const Level = (() => {
         }
       }
     }
-    [deco, vis].forEach(l => { l.setScale(1 / RES); l.setCullPadding(3, 3); });
-    deco.setDepth(6); vis.setDepth(5);
+    (L.trunks || []).forEach(([x, y]) => trunkL.putTileAt(162, x, y));
+    [deco, vis, trunkL].forEach(l => { l.setScale(1 / RES); l.setCullPadding(3, 3); });
+    deco.setDepth(6); vis.setDepth(5); trunkL.setDepth(4);
     return glows;
   }
 
   // kolizijski sloj (24px, nevidljiv)
   function addCollision(scene, L) {
-    const data = L.grid.map(row => row.map(c => (c === '#' || c === 'B' || c === 'I') ? 0 : (c === '-' || c === '=') ? 1 : c === 'D' ? 2 : -1));
+    const data = L.grid.map(row => row.map(c => (c === '#' || c === 'B' || c === 'I') ? 0 : (c === '-' || c === '=') ? 1 : c === 'D' ? 2 : -1));  // '~' voda, 'U' blato, 'W' mreža = zrak
     const map = scene.make.tilemap({ data, tileWidth: TILE, tileHeight: TILE });
     const ts = map.addTilesetImage('col', 'coltiles', TILE, TILE, 0, 0);
     const layer = map.createLayer(0, ts, 0, 0);
@@ -541,9 +547,10 @@ const Level = (() => {
   }
 
   return {
-    count: ZONES.length,
-    worlds: WORLDS, worldOf,
-    build(i) { const L = ZONES[i](); L.index = i; L.name = THEMES[L.theme].name; return L; },
+    get count() { return ZONES.length; },
+    worlds: WORLDS, worldOf, addZones,
+    tools: { grid, at, door },
+    build(i) { const L = ZONES[i](); L.index = i; L.name = THEMES[L.theme].name; L.world = worldOf(i); L.glide = L.world >= 1; return L; },
     addVisuals, addCollision,
   };
 })();

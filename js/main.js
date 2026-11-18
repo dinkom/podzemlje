@@ -316,7 +316,7 @@ class EndScene extends Phaser.Scene {
 // Instalacija kao aplikacija: Chrome javi kad je moguća, a mi pokažemo svoj gumb u izborniku
 // Prijelaz nakon zadnje zone svijeta (Podzemlje → Šuma …)
 class TransitionScene extends Phaser.Scene {
-  constructor() { super('Transition'); }
+  constructor(key = 'Transition') { super(key); }
   create(data) {
     this.world = data && data.world || 0;
     const w = this.scale.width, h = this.scale.height, u = this.u = h / 360;
@@ -478,6 +478,45 @@ class TransitionScene extends Phaser.Scene {
   }
 }
 
+// kraj zadnje gotove zone svijeta koji još nije dovršen
+class SoonScene extends TransitionScene {
+  constructor() { super('Soon'); }
+  create(data) {
+    this.world = data && data.world || 0;
+    const w = this.scale.width, h = this.scale.height, u = this.u = h / 360;
+    this.finished = true; this.phase = 2;
+    SFX.init();
+    this.makeSky(w, h);
+    this.add.image(0, 0, 'tr_sky').setOrigin(0);
+    const moon = this.add.image(w * 0.62, h * 0.34, 'tr_moon').setScale(h * 0.5 / 236);
+    this.add.image(0, 0, 'tr_forest').setOrigin(0);
+    // Huk na mjesecu
+    const huk = this.add.image(moon.x + 46 * u, moon.y + 38 * u, 'huk', 'stand0').setScale(1.6 * u / RES).setTint(0x000000).setAlpha(0);
+    const hg = this.add.image(huk.x + 1.6 * u, huk.y - 38 * 1.6 * u, 'huk_glava', 'front').setScale(1.6 * u / RES).setTint(0x000000).setAlpha(0);
+    const ey = this.add.image(hg.x, hg.y, 'oci_huk').setScale(1.6 * u / RES).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+    huk.setOrigin(0.5, 0.5);
+    this.tweens.add({ targets: [huk, hg], alpha: 1, duration: 2500, delay: 600 });
+    this.tweens.add({ targets: ey, alpha: 1, duration: 300, delay: 3200, onStart: () => SFX.hoot() });
+    const shade = this.add.rectangle(0, 0, w, h, 0x000000, 0.35).setOrigin(0);
+    const W = Level.worlds[this.world];
+    const items = [];
+    items.push(this.add.text(w / 2, h * 0.16, `SVIJET ${this.world + 1}`, { fontFamily: FONT, fontSize: Math.round(16 * u) + 'px', color: '#bcd4ff', letterSpacing: 6 * u }).setOrigin(0.5));
+    items.push(this.add.text(w / 2, h * 0.16 + 38 * u, W.name, { fontFamily: FONT, fontSize: Math.round(40 * u) + 'px', color: '#f3f0dc', stroke: '#000', strokeThickness: 5 * u }).setOrigin(0.5));
+    items.push(this.add.text(w / 2, h * 0.16 + 78 * u, 'Nastavlja se… Huk te još čeka.', { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(16 * u) + 'px', color: '#bcd4ff' }).setOrigin(0.5));
+    this.btns = [];
+    const r = this.add.rectangle(w / 2, h * 0.84, 240 * u, 44 * u, 0x000000, 0.4).setStrokeStyle(2 * u, 0xf3f0dc, 0.6);
+    const t = this.add.text(w / 2, h * 0.84, 'Izbornik', { fontFamily: FONT, fontSize: Math.round(19 * u) + 'px', color: '#f3f0dc' }).setOrigin(0.5);
+    items.push(r, t); this.btns.push({ r, act: 'menu' });
+    items.forEach(o => { o.setAlpha(0); this.tweens.add({ targets: o, alpha: 1, duration: 900, delay: 300 }); });
+    this.t0 = this.time.now;
+    this.input.on('pointerup', (p) => { if (this.time.now - this.t0 > 700) this.tapBtn(p); });
+    this.input.keyboard.on('keydown', (e) => { if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') { SFX.click(); this.scene.start('Title'); } });
+    SFX.win();
+    this.cameras.main.fadeIn(900, 0, 0, 0);
+  }
+  update() {}
+}
+
 let installEvt = null;
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
 const refreshTitle = () => { const t = window.game && game.scene.getScene('Title'); if (t && t.sys.isActive()) t.build(); };
@@ -496,7 +535,7 @@ const game = new Phaser.Game({
   physics: { default: 'arcade', arcade: { gravity: { y: 900 }, debug: false } },
   input: { activePointers: 4 },
   render: { antialias: true, powerPreference: 'high-performance' },
-  scene: [BootScene, TitleScene, GameScene, UIScene, EndScene, TransitionScene],
+  scene: [BootScene, TitleScene, GameScene, UIScene, EndScene, TransitionScene, SoonScene],
 });
 
 let resizeT = null;

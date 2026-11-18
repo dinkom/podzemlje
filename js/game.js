@@ -78,6 +78,7 @@ class GameScene extends Phaser.Scene {
     // pozadine
     this.bgFar = this.add.tileSprite(0, 0, 10, 10, 'bgFar_' + T.id).setOrigin(0).setScrollFactor(0).setDepth(0);
     this.bgMid = this.add.tileSprite(0, 0, 10, 10, 'bgMid_' + T.id).setOrigin(0).setScrollFactor(0).setDepth(1);
+    this.moon = T.moon ? this.add.image(0, 0, 'mjesec').setScrollFactor(0).setDepth(0.5).setTint(T.id === 'paukova' ? 0xffc8c8 : 0xffffff) : null;
 
     // razina
     this.mushGlows = Level.addVisuals(this, L);
@@ -85,11 +86,12 @@ class GameScene extends Phaser.Scene {
 
     // predmeti
     this.items = []; this.cabinets = []; this.notes = []; this.checkpoints = []; this.crawlers = []; this.bats = []; this.spiders = []; this.icicles = [];
+    this.wisps = []; this.huks = []; this.forest = !!T.forest;
     this.threads = this.add.graphics().setDepth(12);
     for (const o of L.objects) {
       if (o.type === 'cabinet') {
-        const s = this.add.image(o.x, o.y, 'ormar').setOrigin(0.5, 1).setScale(1 / RES).setDepth(9);
-        this.cabinets.push({ ...o, s });
+        const s = this.add.image(o.x, o.y + (T.hideTex ? 2 : 0), T.hideTex || 'ormar').setOrigin(0.5, 1).setScale(1 / RES).setDepth(T.hideTex ? 16 : 9);
+        this.cabinets.push({ ...o, s, peekY: T.hideTex ? 14 : 30 });
       } else if (o.type === 'checkpoint') {
         const s = this.add.image(o.x, o.y + 1, 'lamp', 'off').setOrigin(0.5, 1).setScale(1 / RES).setDepth(9);
         this.checkpoints.push({ ...o, s });
@@ -98,9 +100,10 @@ class GameScene extends Phaser.Scene {
         this.notes.push({ ...o, s });
       } else if (o.type === 'battery' || o.type === 'key') {
         if (taken.has(o.id)) continue;
-        const s = this.add.image(o.x, o.y - 7, o.type === 'key' ? 'kljuc' : 'baterija').setScale(1 / RES).setDepth(11);
+        const fly = o.type === 'battery' && this.forest;
+        const s = this.add.image(o.x, o.y - 7, o.type === 'key' ? 'kljuc' : fly ? 'krijesnica' : 'baterija').setScale(1 / RES).setDepth(fly ? 62 : 11);
         const glow = this.add.image(o.x, o.y - 7, 'glow').setScale(o.type === 'key' ? 0.9 : 0.55).setDepth(61)
-          .setTint(o.type === 'key' ? 0xffd25a : 0x6ee09a).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.5);
+          .setTint(o.type === 'key' ? 0xffd25a : fly ? 0xd8ff7a : 0x6ee09a).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.5);
         this.items.push({ ...o, s, glow, baseY: o.y - 7 });
       } else if (o.type === 'exit') {
         this.exit = { ...o, s: this.add.image(o.x, o.y, 'izlaz').setOrigin(0.5, 1).setScale(1 / RES).setDepth(4) };
@@ -112,10 +115,14 @@ class GameScene extends Phaser.Scene {
         this.spawnSpider(o);
       } else if (o.type === 'icicle') {
         this.spawnIcicle(o);
+      } else if (o.type === 'wisp') {
+        this.spawnWisp(o);
+      } else if (o.type === 'hukCameo') {
+        this.spawnHuk({ id: o.id, perches: [o], x1: o.x - 400, x2: o.x + 400, cameo: true });
       }
     }
     // vrata
-    this.doors = L.doors.map(D => ({ ...D, open: false, msg: false, s: this.add.image(D.x, D.y, 'vrata').setOrigin(0).setScale(1 / RES).setDepth(8) }));
+    this.doors = L.doors.map(D => ({ ...D, open: false, msg: false, s: this.add.image(D.x, D.y, L.doorTex || 'vrata').setOrigin(0).setScale(1 / RES).setDepth(8) }));
     this.doors.forEach(D => { if (this.doorsOpen.has(D.id)) this.openDoor(D, true); });
 
     // daske koje pucaju
@@ -130,8 +137,14 @@ class GameScene extends Phaser.Scene {
     // sjaj gljiva iznad mraka
     this.glowImgs = this.mushGlows.map(m => this.add.image(m.x, m.y, 'glow').setScale(0.35).setTint(m.col).setAlpha(0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(61));
 
-    // voda
+    // voda, blato, mreže
     this.buildWater();
+    this.buildMud();
+    this.webs = [];
+    L.grid.forEach((row, y) => row.forEach((ch, x) => {
+      if (ch === 'W') this.webs.push({ x, y, cut: false, s: this.add.image(x * TILE, y * TILE, 'mreza').setOrigin(0).setScale(1 / RES).setDepth(17).setAlpha(0.85) });
+    }));
+    (L.huks || []).forEach(h => this.spawnHuk(h));
 
     // junak
     const cp = this.checkpoints.find(c => c.id === this.save.cp);
@@ -193,11 +206,13 @@ class GameScene extends Phaser.Scene {
     if (L.darkWall) {
       this.wallG = this.add.graphics().setDepth(55);
       this.wallEyes = [];
-      for (let i = 0; i < 7; i++) this.wallEyes.push(this.add.image(0, 0, 'oci_tihi').setScale(1 / RES).setDepth(56).setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
+      for (let i = 0; i < 7; i++) this.wallEyes.push(this.add.image(0, 0, L.darkWall.style === 'spider' ? 'oci_pauk' : 'oci_tihi').setScale(1 / RES).setDepth(56).setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
       if (taken.has(L.darkWall.key)) this.startWall(this.player.x - 340, 2);
     }
     this.iceBurst = this.add.particles(0, 0, 'dot', { lifespan: 500, speed: { min: 40, max: 120 }, scale: { start: 0.5, end: 0 }, gravityY: 400, tint: [0xe8f8ff, 0xa6d8f2], emitting: false }).setDepth(16);
-    if (!this.save.cp) this.ui.zoneCard(this.levelIndex + 1, L.name);
+    const wz = Level.worlds[L.world].zones.indexOf(this.levelIndex) + 1;
+    if (!this.save.cp) this.ui.zoneCard(wz, L.name);
+    if (!this.save.cp && L.intro) this.time.delayedCall(3600, () => this.ui.toast(L.intro, 4500));
     if (!this.save.cp && this.levelIndex === 0) this.time.delayedCall(3200, () => this.ui.toast(this.ui.touchMode ? 'Lijevi palac: hodaj (malo pomakni = šuljaj se tiho).  Desno: skok, udarac, svjetiljka.' : 'A / D: hodaj (drži S za šuljanje)   ·   W / I: skok   ·   J: udarac   ·   K: svjetiljka   ·   L: radnja   ·   Esc: pauza', 5500));
     this.cameras.main.fadeIn(600, 0, 0, 0);
   }
@@ -215,6 +230,7 @@ class GameScene extends Phaser.Scene {
       const s = vh / th / 2;
       ts.setTileScale(s, s);
     });
+    if (this.moon) this.moon.setPosition(ox + vw * 0.74, oy + vh * 0.2).setScale(vh / 270 * 1.1 / RES);
     if (!Dev.is('zoom')) this.darkTex.setSize(Math.ceil((vw + 80) / this.DS), Math.ceil((vh + 80) / this.DS));
     this.dark.setTexture('darkness');
   }
@@ -279,11 +295,12 @@ class GameScene extends Phaser.Scene {
     if (W.delay > 0) W.delay -= dt;
     else W.x = Math.min(D.stopX, W.x + D.speed * dt);
     W.growlT -= dt;
-    if (W.growlT <= 0) { W.growlT = 2.2; SFX.wallGrowl(); }
+    if (W.growlT <= 0) { W.growlT = D.style === 'spider' ? 1.1 : 2.2; D.style === 'spider' ? SFX.chitter(0.35) : SFX.wallGrowl(); }
     // crtanje
     const v = this.cameras.main.worldView, g = this.wallG, t = this.time.now / 1000;
     g.clear();
-    if (W.x > v.x - 60) {
+    if (D.style === 'spider') { if (W.x > v.x - 140) this.drawGiantSpider(W.x, D.y, t); else this.wallEyes.forEach(e => e.setVisible(false)); }
+    else if (W.x > v.x - 60) {
       const top = v.y - 40, bot = v.bottom + 40;
       g.fillStyle(0x000000, 0.97);
       g.beginPath(); g.moveTo(v.x - 100, top);
@@ -511,6 +528,297 @@ class GameScene extends Phaser.Scene {
     return M;
   }
 
+  // ---------------- blato (Šuma) ----------------
+  buildMud() {
+    const g = this.L.grid;
+    this.mudRuns = [];
+    for (let y = 0; y < this.L.H; y++) {
+      let x0 = -1;
+      for (let x = 0; x <= this.L.W; x++) {
+        const m = x < this.L.W && g[y][x] === 'U';
+        if (m && x0 < 0) x0 = x;
+        if (!m && x0 >= 0) { this.mudRuns.push({ x: x0 * TILE, y: y * TILE, w: (x - x0) * TILE, top: !g[y - 1] || g[y - 1][x0] !== 'U' }); x0 = -1; }
+      }
+    }
+    if (!this.mudRuns.length) return;
+    const body = this.add.graphics().setDepth(16);
+    this.mudRuns.forEach(r => {
+      body.fillStyle(0x2a1f10, 0.96); body.fillRect(r.x, r.y + (r.top ? 3 : 0), r.w, TILE - (r.top ? 3 : 0));
+      if (r.top) { body.fillStyle(0x4a3a1e, 1); body.fillRect(r.x, r.y + 3, r.w, 2); }
+    });
+    this.mudG = this.add.graphics().setDepth(16);
+    this.bubbles = [];
+  }
+
+  // koliko je točka (stopala) duboko u blatu; -1 ako nije u blatu
+  mudDepth(x, footY) {
+    const g = this.L.grid, cx = Math.floor(x / TILE);
+    let cy = Math.floor((footY - 1) / TILE);
+    if (!g[cy] || g[cy][cx] !== 'U') return -1;
+    while (g[cy - 1] && g[cy - 1][cx] === 'U') cy--;
+    return footY - (cy * TILE + 3);
+  }
+
+  drawMud(t, v) {
+    const g = this.mudG; g.clear();
+    this.mudRuns.forEach(r => {
+      if (!r.top || r.x > v.right || r.x + r.w < v.x || r.y > v.bottom || r.y < v.y - 20) return;
+      for (let x = r.x + 5; x < r.x + r.w - 3; x += 11) {
+        const ph = (t * 0.6 + x * 0.37) % 1;
+        if (ph < 0.25) { g.fillStyle(0x6a5a32, 0.8); g.fillCircle(x + Math.sin(x) * 3, r.y + 4, 1 + ph * 6); }
+      }
+    });
+  }
+
+  sink() {
+    const st = this.st;
+    st.hp--; SFX.squelch(0.4); SFX.hurt(); Buzz(110);
+    this.cameras.main.shake(180, 0.006);
+    if (st.hp <= 0) { this.die('hp'); return; }
+    st.invul = 1.3; st.lock = 0.3; st.inMud = false;
+    const sp = st.safe || { x: this.L.start.x, y: this.L.start.y - 16 };
+    this.player.body.setVelocity(0, 0);
+    this.player.setPosition(sp.x, sp.y);
+    this.cameras.main.flash(200, 60, 40, 0);
+    this.ui.toast('Blato te povuklo…', 1600);
+  }
+
+  // ---------------- paukove mreže ----------------
+  webAt(b) {
+    if (!this.webs.length) return null;
+    const x0 = Math.floor((b.x + 3) / TILE), x1 = Math.floor((b.right - 3) / TILE), y0 = Math.floor((b.y + 3) / TILE), y1 = Math.floor((b.bottom - 3) / TILE);
+    return this.webs.find(w => !w.cut && w.x >= x0 && w.x <= x1 && w.y >= y0 && w.y <= y1) || null;
+  }
+
+  cutWeb(w) {
+    if (w.cut) return;
+    // presijeci cijeli stupac mreže
+    this.webs.filter(o => !o.cut && o.x === w.x && Math.abs(o.y - w.y) <= 3).forEach(o => {
+      o.cut = true;
+      this.tweens.add({ targets: o.s, alpha: 0, y: o.s.y + 8, duration: 400, onComplete: () => o.s.destroy() });
+      this.dust.emitParticleAt(o.x * TILE + 12, o.y * TILE + 12, 4);
+    });
+    SFX.rustle(0.18);
+  }
+
+  // ---------------- bludna svjetla ----------------
+  spawnWisp(o) {
+    const x = o.x, y = o.y - 12;
+    const glow = this.add.image(x, y, 'glow').setScale(0.5).setTint(0x9ff0d0).setBlendMode(Phaser.BlendModes.ADD).setDepth(61).setAlpha(0.8);
+    const core = this.add.image(x, y, 'dot').setScale(0.7).setTint(0xeafff6).setBlendMode(Phaser.BlendModes.ADD).setDepth(62);
+    this.wisps.push({ hx: x, hy: y, x, y, state: 'live', t: 0, glow, core, ph: Math.random() * 6 });
+  }
+
+  updateWisp(w, dt) {
+    const st = this.st, p = this.player, t = this.time.now / 1000;
+    if (w.state === 'gone') {
+      w.t -= dt;
+      if (w.t <= 0) { w.state = 'live'; w.x = w.hx; w.y = w.hy; this.tweens.add({ targets: [w.glow, w.core], alpha: { from: 0, to: 0.8 }, duration: 900 }); }
+      return;
+    }
+    const dx = p.x - w.x, dy = (p.y - 6) - w.y, d = Math.hypot(dx, dy);
+    if (!st.hidden && !st.dead && d < 170) { w.x += dx / d * 34 * dt; w.y += dy / d * 34 * dt; }
+    else { const hx = w.hx - w.x, hy = w.hy - w.y, hd = Math.hypot(hx, hy); if (hd > 1) { w.x += hx / hd * 22 * dt; w.y += hy / hd * 22 * dt; } }
+    const bx = w.x + Math.sin(t * 1.3 + w.ph) * 4, by = w.y + Math.sin(t * 2.1 + w.ph) * 3;
+    w.glow.setPosition(bx, by).setScale(0.45 + Math.sin(t * 5 + w.ph) * 0.06);
+    w.core.setPosition(bx, by);
+    if (!st.dead && !st.hidden && d < 11) this.popWisp(w, true);
+  }
+
+  popWisp(w, bad) {
+    w.state = 'gone'; w.t = 7;
+    this.tweens.add({ targets: [w.glow, w.core], alpha: 0, duration: 300 });
+    this.burst.emitParticleAt(w.x, w.y, 8);
+    if (!bad) { SFX.bugDie(); return; }
+    const st = this.st;
+    if (!Dev.is('god')) st.battery = Math.max(0, st.battery - 35);
+    if (st.battery <= 0) st.flash = false;
+    SFX.wispZap(); Buzz([60, 40, 120]);
+    this.cameras.main.flash(250, 120, 255, 220);
+    this.ui.toast('Svjetlo ti je popilo svjetiljku…', 2000);
+    this.huks.forEach(h => { if (!h.cameo && this.player.x > h.x1 - 60 && this.player.x < h.x2 + 60) this.hukTelegraph(h); });
+  }
+
+  // ---------------- HUK ----------------
+  spawnHuk(def) {
+    const hs = 0.8, P = def.perches[0];
+    const body = this.add.sprite(P.x, P.y, 'huk', 'stand0').setOrigin(0.5, 1).setScale(hs / RES).setDepth(14);
+    const head = this.add.image(P.x, P.y, 'huk_glava', 'front').setScale(hs / RES).setDepth(14.5);
+    const eyes = this.add.image(P.x, P.y, 'oci_huk').setScale(hs / RES).setDepth(60).setBlendMode(Phaser.BlendModes.ADD);
+    const h = {
+      id: def.id, perches: def.perches, x1: def.x1, x2: def.x2, cameo: !!def.cameo,
+      x: P.x, y: P.y, hs, body, headS: head, eyes, alive: true, dir: -1,
+      state: def.cameo ? 'cameo' : 'perch', head: 'front', headTo: 'front', turnT: 0, lookT: 2 + Math.random() * 2,
+      t: 0, vx: 0, vy: 0, flapT: 0, walk: false,
+    };
+    this.huks.push(h);
+    this.drawHuk(h);
+  }
+
+  hukTurnHead(h, to) {
+    if (h.head === to && h.headTo === to) return;
+    h.headTo = to; h.turnT = 0.24;
+    if (Math.hypot(h.x - this.player.x, h.y - this.player.y) < 420) SFX.creak();
+  }
+
+  hukGroundY(x, fromY, solidOnly = false) {
+    const g = this.L.grid, cx = Math.floor(x / TILE);
+    for (let cy = Math.max(0, Math.floor(fromY / TILE)); cy < this.L.H; cy++) {
+      const c = g[cy] && g[cy][cx];
+      if (c === '#' || c === 'D' || c === 'B' || c === 'I' || (!solidOnly && (c === '-' || c === '=')) || c === 'U') return cy * TILE + (c === 'U' ? 3 : 0);
+    }
+    return null;
+  }
+
+  hukHear(h, x, y, r) {
+    if (!h.alive || h.cameo || r <= 0 || this.st.hidden || this.st.dead) return;
+    if (h.state !== 'perch' && h.state !== 'ground') return;
+    if (x < h.x1 - 60 || x > h.x2 + 60) return;
+    if (Math.hypot(x - h.x, y - (h.y - 40 * h.hs)) < r) this.hukTelegraph(h);
+  }
+
+  hukTelegraph(h) {
+    if (!h.alive || h.cameo || h.state === 'telegraph' || h.state === 'swoop') return;
+    h.state = 'telegraph'; h.t = h.head === 'front' ? 0.75 : 1.0;
+    this.hukTurnHead(h, 'front');
+    h.tx = this.player.x; h.ty = this.player.y;
+    h.dir = h.tx > h.x ? 1 : -1;
+    SFX.hoot(); SFX.sting(); Buzz([60, 40, 60]);
+  }
+
+  updateHuk(h, dt) {
+    if (!h.alive) return;
+    const st = this.st, p = this.player;
+    if (h.turnT > 0) { h.turnT -= dt; if (h.turnT <= 0.12 && h.head !== h.headTo) { h.head = h.headTo; h.headS.setFrame(h.head); } }
+    const visible = !st.hidden && !st.dead;
+    const dx = p.x - h.x, dy = (p.y - 4) - (h.y - 40 * h.hs), d = Math.hypot(dx, dy);
+    const inArea = p.x > h.x1 - 60 && p.x < h.x2 + 60;
+    const looking = h.head === 'front' && h.turnT <= 0;
+    const moving = Math.abs(p.body.velocity.x) > 40 || Math.abs(p.body.velocity.y) > 80;
+    const sees = visible && inArea && looking && (d < 130 || (st.flash && d < 340) || (moving && !st.sneak && d < 300) || (st.gliding && d < 360));
+    const talons = () => visible && !Dev.is('god') && Math.hypot(p.x - h.x, p.y - (h.y - 10 * h.hs)) < 17;
+
+    if (h.state === 'cameo') {
+      h.dir = dx > 0 ? 1 : -1;
+      if (!h.cTrig && visible && Math.abs(dx) < 290) { h.cTrig = true; h.t = 0; this.hukTurnHead(h, 'back'); }
+      if (h.cTrig) {
+        h.t += dt;
+        if (h.t > 1.3 && !h.c2) { h.c2 = true; this.hukTurnHead(h, 'front'); }
+        if (h.t > 2.0 && !h.c3) { h.c3 = true; SFX.hoot(); }
+        if (h.t > 3.2) { h.state = 'leave'; h.vx = 120; h.vy = -110; h.dir = 1; SFX.flap(0.2, 0); }
+      }
+    } else if (h.state === 'leave') {
+      h.x += h.vx * dt; h.y += h.vy * dt; h.vy -= 20 * dt;
+      this.hukFlapSound(h, dt, d);
+      if (h.y < this.cameras.main.worldView.y - 160 || h.y < -120) { h.alive = false; [h.body, h.headS, h.eyes].forEach(o => o.destroy()); return; }
+    } else if (h.state === 'perch' || h.state === 'ground') {
+      h.lookT -= dt;
+      if (h.lookT <= 0 && h.turnT <= 0) {
+        const to = h.head === 'front' ? 'back' : 'front';
+        this.hukTurnHead(h, to);
+        h.lookT = to === 'front' ? 2.4 + Math.random() * 1.6 : 1.7 + Math.random() * 1.4;
+      }
+      if (h.state === 'ground') {
+        h.t -= dt;
+        h.walk = false;
+        if (h.turnT <= 0 && Math.random() < 0.004) h.dir *= -1;
+        const nx = h.x + h.dir * 26 * dt, gy = this.hukGroundY(nx + h.dir * 10, h.y - 10, true);
+        if (gy !== null && Math.abs(gy - h.y) < 4 && nx > h.x1 && nx < h.x2) { h.x = nx; h.walk = true; } else h.dir *= -1;
+        if (talons() || (visible && d < 24)) { this.die('huk'); }
+        if (h.t <= 0) { h.state = 'return'; }
+      }
+      if (sees && h.state !== 'return') this.hukTelegraph(h);
+    } else if (h.state === 'telegraph') {
+      h.t -= dt;
+      if (visible) { h.tx = p.x; h.ty = p.y; }
+      h.dir = h.tx > h.x ? 1 : -1;
+      if (h.t <= 0) {
+        h.state = 'swoop'; h.t = 2.6;
+        const ax = h.tx - h.x, ay = (h.ty - 4) - (h.y - 10 * h.hs), ad = Math.hypot(ax, ay) || 1;
+        h.vx = ax / ad * 250; h.vy = ay / ad * 250;
+        SFX.screech(); Buzz(80);
+      }
+    } else if (h.state === 'swoop') {
+      h.t -= dt;
+      if (visible) { h.tx = p.x; h.ty = p.y; }
+      // ograničeno skretanje — može ga se izbjeći
+      const ax = h.tx - h.x, ay = (h.ty - 4) - (h.y - 10 * h.hs);
+      const want = Math.atan2(ay, ax), cur = Math.atan2(h.vy, h.vx);
+      const diff = Phaser.Math.Angle.Wrap(want - cur);
+      const ang = cur + Phaser.Math.Clamp(diff, -2.2 * dt, 2.2 * dt);
+      h.vx = Math.cos(ang) * 250; h.vy = Math.sin(ang) * 250;
+      h.x += h.vx * dt; h.y += h.vy * dt;
+      h.dir = h.vx > 0 ? 1 : -1;
+      this.hukFlapSound(h, dt, d);
+      if (talons()) { this.die('huk'); return; }
+      const gy = this.hukGroundY(h.x, h.y - 30, true);
+      if (gy !== null && h.y >= gy && h.vy > 0) { h.y = gy; h.state = 'ground'; h.t = 3.4; h.lookT = 1.4; SFX.land(); this.hukTurnHead(h, 'front'); }
+      else if (h.t <= 0 || h.x < h.x1 - 80 || h.x > h.x2 + 80 || h.y > this.worldH) h.state = 'return';
+    } else if (h.state === 'return') {
+      if (!h.home) h.home = h.perches.reduce((a, b) => Math.abs(b.x - h.x) < Math.abs(a.x - h.x) ? b : a);
+      const ax = h.home.x - h.x, ay = h.home.y - h.y, ad = Math.hypot(ax, ay);
+      if (ad < 4) { h.x = h.home.x; h.y = h.home.y; h.home = null; h.state = 'perch'; h.lookT = 2.2; }
+      else { h.x += ax / ad * 140 * dt; h.y += ay / ad * 140 * dt; h.dir = ax > 0 ? 1 : -1; this.hukFlapSound(h, dt, d); }
+      if (talons()) { this.die('huk'); return; }
+    }
+    this.drawHuk(h);
+  }
+
+  hukFlapSound(h, dt, d) {
+    h.flapT -= dt;
+    if (h.flapT <= 0) { h.flapT = 0.28; SFX.flap(Phaser.Math.Clamp(0.22 - d / 2500, 0.02, 0.22), Phaser.Math.Clamp((h.x - this.player.x) / 300, -1, 1)); }
+  }
+
+  drawHuk(h) {
+    const t = this.time.now, hs = h.hs;
+    let fr;
+    const flying = h.state === 'swoop' || h.state === 'return' || h.state === 'leave';
+    if (h.state === 'telegraph') fr = Math.floor(t / 90) % 2 ? 'fly0' : 'fly1';
+    else if (h.state === 'swoop') fr = h.vy > 80 ? 'dive' : Math.floor(t / 110) % 2 ? 'fly0' : 'fly1';
+    else if (flying) fr = Math.floor(t / 140) % 2 ? 'fly0' : 'fly1';
+    else if (h.walk) fr = 'walk' + (Math.floor(t / 160) % 4);
+    else fr = Math.floor(t / 650) % 2 ? 'stand1' : 'stand0';
+    h.body.setFrame(fr).setPosition(h.x, h.y).setFlipX(h.dir < 0);
+    const bob = fr === 'stand1' ? 0.7 : fr === 'fly1' ? 1 : 0;
+    const shake = h.state === 'telegraph' ? (Math.random() - 0.5) * 1.5 : 0;
+    const hx = h.x + h.dir * hs + shake, hy = h.y - (86 - 14 - bob) * hs - 9 * hs;
+    const sx = h.turnT > 0 ? Math.abs(Math.cos(Math.PI * (1 - h.turnT / 0.24))) : 1;
+    h.headS.setPosition(hx, hy).setScale(hs / RES * Math.max(0.08, sx), hs / RES);
+    const eyesOn = h.head === 'front' && sx > 0.5;
+    h.eyes.setVisible(eyesOn).setPosition(hx, hy).setAlpha(h.state === 'telegraph' ? 0.6 + Math.random() * 0.4 : (Math.sin(t / 700) > 0.96 ? 0.1 : 0.9));
+  }
+
+  // ---------------- golema paukica (potjera) ----------------
+  drawGiantSpider(x, y, t) {
+    const g = this.wallG, v = this.cameras.main.worldView;
+    if (x - 110 > v.x - 100) { g.fillStyle(0x000000, 0.96); g.fillRect(v.x - 100, v.y - 40, x - 110 - (v.x - 100), v.height + 80); }
+    for (let i = 0; i < 4; i++) { g.fillStyle(0x000000, 0.7 - i * 0.17); g.fillRect(x - 110 + i * 8, v.y - 40, 8, v.height + 80); }
+    const legs = (side, col, w) => {
+      for (let i = 0; i < 4; i++) {
+        const ph = t * 9 + i * 1.6 + side;
+        const bx = x - 40 + i * 6, by = y - 6;
+        const fx = x - 92 + i * 36 + Math.sin(ph) * 14, fy = y + 46 - Math.max(0, Math.cos(ph)) * 10;
+        const kx = (bx + fx) / 2 + 8, ky = y - 48 - i * 3 + Math.sin(ph) * 6;
+        g.lineStyle(w, col, 1); g.beginPath(); g.moveTo(bx, by); g.lineTo(kx, ky); g.lineTo(fx, fy); g.strokePath();
+        g.lineStyle(1, 0x6a5a78, 0.5); g.beginPath(); g.moveTo(kx, ky); g.lineTo(fx, fy); g.strokePath();
+      }
+    };
+    legs(0, 0x0a070c, 5);
+    g.fillStyle(0x1a121c, 1); g.fillEllipse(x - 82, y - 10, 96, 76);
+    g.fillStyle(0xa01828, 1); g.fillTriangle(x - 90, y - 28, x - 74, y - 28, x - 82, y - 14); g.fillTriangle(x - 90, y, x - 74, y, x - 82, y - 14);
+    g.lineStyle(1, 0x3a2a40, 0.8);
+    for (let i = 0; i < 9; i++) { const a = i * 0.7; g.beginPath(); g.moveTo(x - 82 + Math.cos(a) * 44, y - 10 + Math.sin(a) * 34); g.lineTo(x - 82 + Math.cos(a) * 52, y - 10 + Math.sin(a) * 40); g.strokePath(); }
+    g.fillStyle(0x221826, 1); g.fillCircle(x - 28, y, 26);
+    legs(3.1, 0x16101a, 4.5);
+    const f = Math.sin(t * 14) * 3;
+    g.fillStyle(0xd8d0c0, 1); g.fillTriangle(x - 10, y + 10, x - 3, y + 10, x - 4 + f, y + 26); g.fillTriangle(x - 20, y + 12, x - 13, y + 12, x - 16 - f, y + 26);
+    const E = [[-6, -12], [2, -8], [-12, -4], [-2, -2], [-14, -14], [6, -2], [-8, 4]];
+    this.wallEyes.forEach((e, i) => {
+      const blink = Math.sin(t * 1.3 + i * 1.7) > 0.95;
+      e.setVisible(true).setPosition(x - 18 + E[i][0], y + E[i][1]).setAlpha(blink ? 0.1 : 1);
+    });
+  }
+
   // ---------------- pomoćne ----------------
   feet(s) { return s.body.y + s.body.height; }
   overlap(a, b, pad = 0) {
@@ -536,6 +844,8 @@ class GameScene extends Phaser.Scene {
     this.bats.forEach(bt => this.updateBat(bt, dt));
     this.updateSpiders(dt);
     this.updateIcicles(dt);
+    this.wisps.forEach(w => this.updateWisp(w, dt));
+    this.huks.forEach(h => this.updateHuk(h, dt));
     this.updateWall(dt);
     this.updateCrumbles(dt);
     if (!st.dead) this.checkSpikes();
@@ -582,6 +892,22 @@ class GameScene extends Phaser.Scene {
       if (st.battery <= 0) { st.flash = false; this.ui.toast('Baterija je prazna!'); }
     }
 
+    // zapeo u mreži
+    if (st.web) {
+      b.setVelocity(0, 0); b.setAllowGravity(false);
+      p.x = st.webX + (st.webShake > 0 ? Math.sin(this.time.now / 25) : 0); st.webShake = Math.max(0, st.webShake - dt);
+      p.anims.stop(); p.setFrame('fall');
+      if (jumpP) {
+        st.webHits++; st.webShake = 0.15; SFX.rustle(0.12); this.noise(p.x, p.y, 150);
+        if (st.webHits >= 4) { this.cutWeb(st.web); st.web = null; b.setAllowGravity(true); b.setVelocityY(-180); }
+      }
+      return;
+    }
+    if (!Dev.is('fly')) {
+      const w = this.webAt(b);
+      if (w) { st.web = w; st.webHits = 0; st.webX = p.x; st.webShake = 0; SFX.rustle(0.2); Buzz(40); this.ui.toast('Zapeo si u mreži! Tapkaj skok!', 1800); return; }
+    }
+
     // DEV: letenje kroz zidove
     if (Dev.is('fly')) {
       b.setAllowGravity(false); b.checkCollision.none = true;
@@ -598,6 +924,12 @@ class GameScene extends Phaser.Scene {
     let dir = (right ? 1 : 0) - (left ? 1 : 0);
     if (st.lock > 0) dir = 0;
     const wet = this.inWater(p.x, this.feet(p));
+    const mud = this.mudDepth(p.x, this.feet(p));
+    if (mud >= 0) {
+      if (!st.inMud) { SFX.squelch(0.25); st.inMud = true; }
+      if (b.velocity.y > 16) b.setVelocityY(16);
+      if (mud > 17 && !Dev.is('god')) { this.sink(); return; }
+    } else st.inMud = false;
     if (wet && !st.wasWet && b.velocity.y > 60) { SFX.splash(0.25); this.noise(p.x, p.y, 160); }
     st.wasWet = wet;
     // ispod nogu: gljiva-trampolin ili led
@@ -611,19 +943,28 @@ class GameScene extends Phaser.Scene {
     const onIce = ground && underC[1] === 'I';
     const sneak = Controls.sneak || K.S.isDown;
     st.sneak = sneak && dir !== 0;
-    const target = dir * (wet ? 66 : (sneak && ground) ? 58 : 118) * (Dev.is('fast') ? 2.5 : 1);
+    if (st.inMud && dir && ((b.blocked.right && dir > 0) || (b.blocked.left && dir < 0)) && b.velocity.y >= 0) b.setVelocityY(-170);   // izvuci se na rub
+    const target = dir * (st.inMud ? 40 : wet ? 66 : (sneak && ground) ? 58 : 118) * (Dev.is('fast') ? 2.5 : 1);
     if (st.lock <= 0) b.setVelocityX(Phaser.Math.Linear(b.velocity.x, target, Math.min(1, dt * (onIce ? 1.6 : ground ? 16 : 12))));
     if (dir !== 0 && st.atkT <= 0) st.face = dir;
     p.setFlipX(st.face < 0);
 
     // skok: coyote time + buffer
-    st.coyote = ground ? 0.1 : Math.max(0, st.coyote - dt);
+    st.coyote = (ground || st.inMud) ? 0.1 : Math.max(0, st.coyote - dt);
     st.buffer = jumpP ? 0.13 : Math.max(0, st.buffer - dt);
     if (st.buffer > 0 && st.coyote > 0) {
-      b.setVelocityY(wet ? -300 : -345); st.buffer = 0; st.coyote = 0; st.jumping = true; wet ? SFX.splash(0.2) : SFX.jump();
+      b.setVelocityY(st.inMud ? -290 : wet ? -300 : -345); st.buffer = 0; st.coyote = 0; st.jumping = true;
+      st.inMud ? SFX.squelch(0.2) : wet ? SFX.splash(0.2) : SFX.jump();
     }
     if (st.jumping && !jumpH && b.velocity.y < -130) b.setVelocityY(-130);
     if (b.velocity.y >= 0) st.jumping = false;
+    // lebdenje (Šuma): drži skok dok padaš
+    st.gliding = this.L.glide && !ground && !st.inMud && !wet && jumpH && b.velocity.y > 0 && st.lock <= 0;
+    if (st.gliding) {
+      if (b.velocity.y > 55) b.setVelocityY(55);
+      st.flapT = (st.flapT || 0) - dt;
+      if (st.flapT <= 0) { st.flapT = 0.32; SFX.flap(0.06, 0); this.noise(p.x, p.y, 0, 330); }
+    }
 
     // zapamti sigurno tlo (za povratak nakon šiljaka)
     if (ground && !wet) {
@@ -634,11 +975,14 @@ class GameScene extends Phaser.Scene {
       if (solidish(under) && solidish(ur[cx - 1]) && solidish(ur[cx + 1]) && row[cx - 1] !== '^' && row[cx] !== '^' && row[cx + 1] !== '^') st.safe = { x: cx * TILE + TILE / 2, y: p.y };
     }
     // doskok
-    if (ground && st.airVy > 260) { SFX.land(); this.dust.emitParticleAt(p.x, this.feet(p), 4); }
+    if (ground && st.airVy > 260 && !st.inMud) { SFX.land(); this.dust.emitParticleAt(p.x, this.feet(p), 4); }
     st.airVy = ground ? 0 : Math.max(st.airVy, b.velocity.y);
 
     // koraci
-    if (ground && Math.abs(b.velocity.x) > 40) {
+    if (st.inMud && Math.abs(b.velocity.x) > 20) {
+      st.stepT -= dt;
+      if (st.stepT <= 0) { st.stepT = 0.45; SFX.squelch(0.14); this.noise(p.x, p.y, 120); }
+    } else if (ground && Math.abs(b.velocity.x) > 40) {
       st.stepT -= dt;
       if (st.stepT <= 0) {
         if (wet) { st.stepT = 0.36; SFX.splash(); this.noise(p.x, p.y, 150); }
@@ -660,6 +1004,8 @@ class GameScene extends Phaser.Scene {
       });
       this.bats.forEach(bt => { if (bt.alive && bt.state !== 'sleep' && hit.contains(bt.x, bt.y)) this.killBat(bt); });
       this.spiders.forEach(sp => { if (sp.alive && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(sp.x - 8, sp.y - 8, 16, 16))) this.hitSpider(sp); });
+      this.webs.forEach(w => { if (!w.cut && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(w.x * TILE + 2, w.y * TILE + 2, TILE - 4, TILE - 4))) this.cutWeb(w); });
+      this.wisps.forEach(w => { if (w.state === 'live' && hit.contains(w.x, w.y)) this.popWisp(w, false); });
       this.noise(p.x, p.y, 170);
     }
     this.slash.setVisible(st.atkT > 0);
@@ -670,6 +1016,8 @@ class GameScene extends Phaser.Scene {
     // animacija
     let anim;
     if (st.atkT > 0) { p.anims.stop(); p.setFrame('attack'); }
+    else if (st.gliding) { p.anims.stop(); p.setFrame(Math.floor(this.time.now / 130) % 2 ? 'fly1' : 'fly0'); }
+    else if (st.inMud) anim = Math.abs(b.velocity.x) > 20 ? 'hero-run' : 'hero-idle';
     else if (!ground) { p.anims.stop(); p.setFrame(b.velocity.y < 0 ? 'jump' : 'fall'); }
     else if (Math.abs(b.velocity.x) > 25) anim = 'hero-run';
     else anim = 'hero-idle';
@@ -677,7 +1025,8 @@ class GameScene extends Phaser.Scene {
     else if (anim && !p.anims.isPlaying) p.play(anim);
   }
 
-  noise(x, y, r) {
+  noise(x, y, r, hukR = r * 1.5) {
+    this.huks.forEach(h => this.hukHear(h, x, y, hukR));
     this.bats.forEach(bt => { if (bt.alive && Math.hypot(bt.x - x, bt.y - y) < r * 0.6) this.wakeBat(bt); });
     this.monsters.forEach(m => {
       if (!m.active || this.st.hidden) return;
@@ -853,10 +1202,10 @@ class GameScene extends Phaser.Scene {
     if (st.dead) return;
     st.dead = true; st.flash = false;
     this.player.body.setVelocity(0, 0); this.player.body.enable = false;
-    if (reason === 'monster') {
+    if (reason === 'monster' || reason === 'huk') {
       Buzz([200, 60, 350]);
       SFX.scream();
-      this.ui.jumpscare(() => this.scene.restart());
+      this.ui.jumpscare(() => this.scene.restart(), reason === 'huk' ? 'lice_huk' : 'lice');
     } else {
       Buzz([120, 80, 200]);
       this.tweens.add({ targets: this.player, alpha: 0, angle: st.face * 80, duration: 700 });
@@ -900,7 +1249,7 @@ class GameScene extends Phaser.Scene {
       if (Math.abs(it.x - p.x) < 14 && Math.abs(it.baseY - (p.y - 2)) < 20) {
         it.done = true; this.taken.add(it.id);
         this.tweens.add({ targets: [it.s, it.glow], alpha: 0, y: it.baseY - 14, duration: 350, onComplete: () => { it.s.destroy(); it.glow.destroy(); } });
-        if (it.type === 'battery') { st.battery = Math.min(100, st.battery + 35); SFX.pickup(); this.ui.toast('+ baterija'); }
+        if (it.type === 'battery') { st.battery = Math.min(100, st.battery + 35); SFX.pickup(); this.ui.toast(this.forest ? '+ krijesnice u svjetiljci' : '+ baterija'); }
         else { this.keyCount++; SFX.key(); this.ui.toast('Uzeo si stari ključ…', 2000); this.wakeTheSleeper(it.id); }
       }
     }
@@ -925,9 +1274,12 @@ class GameScene extends Phaser.Scene {
       const next = this.levelIndex + 1;
       const world = Level.worldOf(this.levelIndex);
       const endsWorld = next >= Level.count || Level.worldOf(next) !== world;
+      const worldComplete = Level.worlds[world].zones.length >= 7;
       if (endsWorld) this.cameras.main.fadeOut(1400, 0, 0, 0); else this.cameras.main.fadeOut(1400, 230, 245, 255);
       this.time.delayedCall(1500, () => {
-        if (endsWorld) {
+        if (endsWorld && !worldComplete) {
+          this.scene.stop('UI'); this.scene.start('Soon', { world });
+        } else if (endsWorld) {
           Progress.worldDone(world);
           Save.store(next < Level.count ? Save.fresh(next) : { ...Save.fresh(next - 1), done: true });
           this.scene.stop('UI'); this.scene.start('Transition', { world });
@@ -943,9 +1295,9 @@ class GameScene extends Phaser.Scene {
     const watchers = this.monsters.filter(m => m.active && m.state === 'chase' && m.sawT < 0.7 && Math.abs(m.s.x - p.x) < 210 && Math.abs(this.feet(m.s) - this.feet(p)) < 62);
     st.hidden = cab; st.flash = false;
     p.setVisible(false); p.body.setVelocity(0, 0); p.x = cab.x;
-    this.peek.setPosition(cab.x, cab.y - 30).setVisible(true);
+    this.peek.setPosition(cab.x, cab.y - cab.peekY).setVisible(true);
     this.tweens.add({ targets: cab.s, x: cab.x + 0.6, duration: 50, yoyo: true, repeat: 3 });
-    SFX.door();
+    this.forest ? SFX.rustle(0.18) : SFX.door();
     watchers.forEach(m => { m.state = 'inspect'; m.target = cab; });
   }
 
@@ -954,7 +1306,7 @@ class GameScene extends Phaser.Scene {
     st.hidden = null;
     this.player.setVisible(true);
     this.peek.setVisible(false);
-    SFX.click();
+    this.forest ? SFX.rustle(0.1) : SFX.click();
   }
 
   openDoor(D, instant) {
@@ -1008,6 +1360,8 @@ class GameScene extends Phaser.Scene {
         }
       });
     }
+    if (this.mudG) this.drawMud(t, v);
+    if (this.forest) this.items.forEach(it => { if (!it.done && it.type === 'battery') it.s.setAlpha(0.6 + Math.sin(t * 6 + it.x) * 0.4); });
     // junak sakriven — oči u ormaru trepću
     if (this.st.hidden) this.peek.setAlpha(Math.sin(t * 1.7) > 0.93 ? 0 : 0.8);
   }
@@ -1050,6 +1404,11 @@ class GameScene extends Phaser.Scene {
     if (this.exit) L(this.exit.x, this.exit.y - 18, 85, 1);
     this.items.forEach(it => { if (!it.done && it.type === 'key') L(it.x, it.baseY, 26, 0.7); });
     if (!this.lightsOff) this.mushGlows.forEach(m => L(m.x, m.y, 18, 0.45));
+    if (this.moon) L(v.x + v.width * 0.74, v.y + v.height * 0.2, 46, 0.85);
+    if (this.forest) this.items.forEach(it => { if (!it.done && it.type === 'battery') L(it.x, it.baseY, 22, 0.55); });
+    this.wisps.forEach(w => { if (w.state === 'live') L(w.x, w.y, 34, 0.8); });
+    this.huks.forEach(h => { if (h.alive) L(h.x, h.y - 38 * h.hs, 46, 0.32); });
+    if (this.wall && this.L.darkWall.style === 'spider') L(this.wall.x - 30, this.L.darkWall.y, 70, 0.35);
     c.globalCompositeOperation = 'source-over';
     c.globalAlpha = 1;
     tex.refresh();
@@ -1062,7 +1421,11 @@ class GameScene extends Phaser.Scene {
     if (this.dripT <= 0) {
       const [a, b] = this.T.drip;
       this.dripT = a + Math.random() * b;
-      if (this.T.id === 'kosturnica' && Math.random() < 0.25) SFX.bell();
+      const pan = Math.random() * 2 - 1;
+      if (this.T.amb === 'crickets') { SFX.cricket(pan); if (Math.random() < 0.08) SFX.hoot(); }
+      else if (this.T.amb === 'frogs') { Math.random() < 0.6 ? SFX.frog(pan) : SFX.cricket(pan); }
+      else if (this.T.amb === 'creak') { Math.random() < 0.5 ? SFX.chitter(0.05, pan) : SFX.creak(); }
+      else if (this.T.id === 'kosturnica' && Math.random() < 0.25) SFX.bell();
       else if (this.T.id === 'gnijezdo' && Math.random() < 0.45) SFX.heart(0.14);
       else SFX.drip(Math.random() * 2 - 1);
     }
@@ -1073,6 +1436,12 @@ class GameScene extends Phaser.Scene {
       const d = Math.hypot(m.s.x - p.x, (this.feet(m.s) - this.feet(p)) * 1.6);
       if (d < near) near = d;
       if (m.state === 'chase') chasing = true;
+    });
+    this.huks.forEach(h => {
+      if (!h.alive || h.cameo) return;
+      const d = Math.hypot(h.x - p.x, h.y - this.feet(p));
+      if (h.state === 'swoop' || h.state === 'telegraph') { chasing = true; near = Math.min(near, d); }
+      else if (h.head === 'front') near = Math.min(near, d * 1.4);
     });
     if (this.wall) { near = Math.min(near, Math.max(0, this.player.x - this.wall.x)); chasing = true; }
     const close = Phaser.Math.Clamp(1 - near / 320, 0, 1);
