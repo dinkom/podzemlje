@@ -709,7 +709,8 @@ class GameScene extends Phaser.Scene {
     const looking = h.head === 'front' && h.turnT <= 0;
     const moving = Math.abs(p.body.velocity.x) > 40 || Math.abs(p.body.velocity.y) > 80;
     const sees = visible && inArea && looking && (d < 130 || (st.flash && d < 340) || (moving && !st.sneak && d < 340) || (st.gliding && d < 400));
-    const talons = () => visible && !Dev.is('god') && Math.hypot(p.x - h.x, p.y - (h.y - 10 * h.hs)) < 17;
+    // kandže + donji dio tijela
+    const talons = () => { if (!visible || Dev.is('god')) return false; const ry = p.y - (h.y - 20 * h.hs); return Math.abs(p.x - h.x) < 17 && ry > -28 && ry < 18; };
 
     if (h.state === 'cameo') {
       h.dir = dx > 0 ? 1 : -1;
@@ -760,27 +761,39 @@ class GameScene extends Phaser.Scene {
       if (visible) { h.tx = p.x; h.ty = p.y; }
       h.dir = h.tx > h.x ? 1 : -1;
       if (h.t <= 0) {
-        h.state = 'swoop'; h.t = 2.6;
+        h.state = 'swoop'; h.t = 3.0;
         const ax = h.tx - h.x, ay = (h.ty - 4) - (h.y - 10 * h.hs), ad = Math.hypot(ax, ay) || 1;
         h.vx = ax / ad * 290; h.vy = ay / ad * 290;
         SFX.screech(); Buzz(80);
       }
     } else if (h.state === 'swoop') {
       h.t -= dt;
-      if (visible) { h.tx = p.x; h.ty = p.y; }
-      // ograničeno skretanje — može ga se izbjeći
-      const ax = h.tx - h.x, ay = (h.ty - 4) - (h.y - 10 * h.hs);
+      // cilja kamo junak ide; izdaleka skreće sporije, izbliza oštro
+      if (visible) { const lead = Math.min(0.45, d / 290); h.tx = p.x + p.body.velocity.x * lead; h.ty = p.y; }
+      const ax = h.tx - h.x, ay = (h.ty - 2) - (h.y - 14 * h.hs);
       const want = Math.atan2(ay, ax), cur = Math.atan2(h.vy, h.vx);
       const diff = Phaser.Math.Angle.Wrap(want - cur);
-      const ang = cur + Phaser.Math.Clamp(diff, -2.8 * dt, 2.8 * dt);
+      const turn = d < 170 ? 8 : 3.4;
+      const ang = cur + Phaser.Math.Clamp(diff, -turn * dt, turn * dt);
       h.vx = Math.cos(ang) * 290; h.vy = Math.sin(ang) * 290;
       h.x += h.vx * dt; h.y += h.vy * dt;
       h.dir = h.vx > 0 ? 1 : -1;
       this.hukFlapSound(h, dt, d);
+      // svjetiljka u lice ga zaslijepi
+      if (st.flash && st.battery > 0 && d < 165 && (h.x - p.x) * st.face > -8) {
+        h.state = 'blind'; h.t = 1.2; h.vx = -Math.sign(h.x - p.x || 1) * -150; h.vy = -230;
+        st.battery = Math.max(0, st.battery - 12);
+        SFX.screech(); Buzz([40, 30, 40]); this.cameras.main.flash(120, 255, 240, 180);
+        return;
+      }
       if (talons()) { this.die('huk'); return; }
       const gy = this.hukGroundY(h.x, h.y - 30, true);
       if (gy !== null && h.y >= gy && h.vy > 0) { h.y = gy; h.state = 'ground'; h.t = 4.5; h.lookT = 1.6; SFX.land(); this.hukTurnHead(h, 'front'); }
       else if (h.t <= 0 || h.x < h.x1 - 80 || h.x > h.x2 + 80 || h.y > this.worldH) h.state = 'return';
+    } else if (h.state === 'blind') {
+      h.t -= dt; h.x += h.vx * dt; h.y += h.vy * dt; h.vy += 120 * dt;
+      h.dir = h.vx > 0 ? 1 : -1; this.hukFlapSound(h, dt, d);
+      if (h.t <= 0) h.state = 'return';
     } else if (h.state === 'return') {
       if (!h.home) h.home = h.perches.reduce((a, b) => Math.abs(b.x - h.x) < Math.abs(a.x - h.x) ? b : a);
       const ax = h.home.x - h.x, ay = h.home.y - h.y, ad = Math.hypot(ax, ay);
@@ -800,7 +813,7 @@ class GameScene extends Phaser.Scene {
     const t = this.time.now, hs = h.hs;
     let fr;
     const flying = h.state === 'swoop' || h.state === 'return' || h.state === 'leave';
-    if (h.state === 'telegraph') fr = Math.floor(t / 90) % 2 ? 'fly0' : 'fly1';
+    if (h.state === 'telegraph' || h.state === 'blind') fr = Math.floor(t / 70) % 2 ? 'fly0' : 'fly1';
     else if (h.state === 'swoop') fr = h.vy > 80 ? 'dive' : Math.floor(t / 110) % 2 ? 'fly0' : 'fly1';
     else if (flying) fr = Math.floor(t / 140) % 2 ? 'fly0' : 'fly1';
     else if (h.walk) fr = 'walk' + (Math.floor(t / 160) % 4);
