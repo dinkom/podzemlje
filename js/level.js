@@ -529,7 +529,7 @@ const Level = (() => {
       }
     }
     (L.trunks || []).forEach(([x, y]) => trunkL.putTileAt(162, x, y));
-    [deco, vis, trunkL].forEach(l => { l.setScale(1 / RES); l.setCullPadding(3, 3); });
+    [deco, vis, trunkL].forEach(l => { l.setScale(1 / RES); l.setCullPadding(8, 8); });
     deco.setDepth(6); vis.setDepth(5); trunkL.setDepth(4);
     return glows;
   }

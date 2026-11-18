@@ -118,7 +118,7 @@ class GameScene extends Phaser.Scene {
       } else if (o.type === 'wisp') {
         this.spawnWisp(o);
       } else if (o.type === 'hukCameo') {
-        this.spawnHuk({ id: o.id, perches: [o], x1: o.x - 400, x2: o.x + 400, cameo: true });
+        if (!taken.has(o.id)) this.spawnHuk({ id: o.id, perches: [o], x1: o.x - 400, x2: o.x + 400, cameo: true });
       }
     }
     // vrata
@@ -653,6 +653,19 @@ class GameScene extends Phaser.Scene {
     };
     this.huks.push(h);
     this.drawHuk(h);
+    if (def.dormant && !this.taken.has(def.dormant)) { h.dormant = def.dormant; h.alive = false; [body, head, eyes].forEach(o => o.setVisible(false)); }
+  }
+
+  // Huk se vraća (kad uzmeš ključ)
+  wakeHuk(h) {
+    const v = this.cameras.main.worldView;
+    h.dormant = null; h.alive = true;
+    h.x = Phaser.Math.Clamp(this.player.x + 260, h.x1, h.x2); h.y = v.y - 80;
+    h.state = 'return'; h.home = null; h.head = 'front'; h.headTo = 'front'; h.turnT = 0;
+    [h.body, h.headS, h.eyes].forEach(o => o.setVisible(true));
+    SFX.screech(); SFX.hoot(0.6); Buzz([120, 60, 120]);
+    this.cameras.main.shake(500, 0.004);
+    this.ui.toast('Huk se vratio…', 2400);
   }
 
   hukTurnHead(h, to) {
@@ -700,17 +713,27 @@ class GameScene extends Phaser.Scene {
 
     if (h.state === 'cameo') {
       h.dir = dx > 0 ? 1 : -1;
-      if (!h.cTrig && visible && Math.abs(dx) < 290) { h.cTrig = true; h.t = 0; this.hukTurnHead(h, 'back'); }
+      const cam = this.cameras.main;
+      if (!h.cTrig && visible && p.x > h.x - 250 && p.x < h.x + 60) {
+        h.cTrig = true; h.t = 0; h.spot = true; this.taken.add(h.id);
+        st.lock = 4.6; p.body.setVelocityX(0); st.flash = false;
+        cam.stopFollow(); cam.pan(h.x, h.y - 30, 1100, 'Sine.easeInOut');
+        SFX.sting(); Buzz([60, 40, 60]);
+      }
       if (h.cTrig) {
         h.t += dt;
-        if (h.t > 1.3 && !h.c2) { h.c2 = true; this.hukTurnHead(h, 'front'); }
-        if (h.t > 2.0 && !h.c3) { h.c3 = true; SFX.hoot(); }
-        if (h.t > 3.2) { h.state = 'leave'; h.vx = 120; h.vy = -110; h.dir = 1; SFX.flap(0.2, 0); }
+        if (h.t > 1.5 && !h.c1) { h.c1 = true; this.hukTurnHead(h, 'back'); }
+        if (h.t > 2.3 && !h.c2) { h.c2 = true; this.hukTurnHead(h, 'front'); }
+        if (h.t > 2.6 && !h.c3) { h.c3 = true; SFX.hoot(); SFX.screech(); cam.shake(350, 0.005); Buzz([100, 50, 200]); }
+        if (h.t > 3.6) {
+          h.state = 'leave'; h.vx = 130; h.vy = -120; h.dir = 1; SFX.flap(0.2, 0);
+          cam.pan(p.x, p.y + 18, 800, 'Sine.easeInOut', true, (c, k) => { if (k === 1) { c.startFollow(p, true, 0.12, 0.12); c.setFollowOffset(0, 18); } });
+        }
       }
     } else if (h.state === 'leave') {
       h.x += h.vx * dt; h.y += h.vy * dt; h.vy -= 20 * dt;
       this.hukFlapSound(h, dt, d);
-      if (h.y < this.cameras.main.worldView.y - 160 || h.y < -120) { h.alive = false; [h.body, h.headS, h.eyes].forEach(o => o.destroy()); return; }
+      if (h.y < this.cameras.main.worldView.y - 220 || h.y < -200) { h.alive = false; [h.body, h.headS, h.eyes].forEach(o => o.destroy()); return; }
     } else if (h.state === 'perch' || h.state === 'ground') {
       h.lookT -= dt;
       if (h.lookT <= 0 && h.turnT <= 0) {
@@ -1321,6 +1344,7 @@ class GameScene extends Phaser.Scene {
   }
 
   wakeTheSleeper(keyId) {
+    this.huks.filter(h => h.dormant === keyId).forEach(h => this.time.delayedCall(900, () => this.wakeHuk(h)));
     if (this.L.darkWall && this.L.darkWall.key === keyId) this.time.delayedCall(700, () => { this.ui.toast('Tama se pomaknula…', 2200); this.startWall(this.player.x - 300, 1.6); });
     const lo = this.L.lightsOutKey === keyId;
     if (lo) this.time.delayedCall(500, () => { this.applyLightsOut(false); this.ui.toast('Sve su se svijeće ugasile…', 2200); });
@@ -1407,7 +1431,7 @@ class GameScene extends Phaser.Scene {
     if (this.moon) L(v.x + v.width * 0.74, v.y + v.height * 0.2, 46, 0.85);
     if (this.forest) this.items.forEach(it => { if (!it.done && it.type === 'battery') L(it.x, it.baseY, 22, 0.55); });
     this.wisps.forEach(w => { if (w.state === 'live') L(w.x, w.y, 34, 0.8); });
-    this.huks.forEach(h => { if (h.alive) L(h.x, h.y - 38 * h.hs, 46, 0.32); });
+    this.huks.forEach(h => { if (h.alive) L(h.x, h.y - 38 * h.hs, h.spot ? 110 : 46, h.spot ? 0.8 : 0.32); });
     if (this.wall && this.L.darkWall.style === 'spider') L(this.wall.x - 30, this.L.darkWall.y, 70, 0.35);
     c.globalCompositeOperation = 'source-over';
     c.globalAlpha = 1;
