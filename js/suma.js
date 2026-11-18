@@ -465,7 +465,7 @@
     return {
       theme: 'mocvara', W: 470, H: 34, grid: G.g, trunks: G.trunks, objects: c.O, monsters: [], huks, doors: c.doors, start: at(2, S), doorTex: 'vrata_suma',
       notes: {
-        N1: 'Blato vuče prema dolje.\nAko staneš u njemu, potone te.\n\nA svjetla iznad blata nisu krijesnice.',
+        N1: 'Blato vuče prema dolje.\nAko zastaneš u njemu, potonut ćeš.\n\nA svjetla iznad blata nisu krijesnice.',
         N2: 'Trula debla plutaju na blatu.\nNe drže dugo.\n\nHuk sjedi na suhim granama.\nČuje krila kad lebdiš.',
         N3: 'Netko je bacio ključ u najdublje blato.\n\nKao da je znao da ćeš doći.',
       },
