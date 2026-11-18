@@ -821,11 +821,11 @@ class GameScene extends Phaser.Scene {
     h.body.setFrame(fr).setPosition(h.x, h.y).setFlipX(h.dir < 0);
     const bob = fr === 'stand1' ? 0.7 : fr === 'fly1' ? 1 : 0;
     const shake = h.state === 'telegraph' ? (Math.random() - 0.5) * 1.5 : 0;
-    const hx = h.x + h.dir * hs + shake, hy = h.y - (86 - 14 - bob) * hs - 9 * hs;
+    const hx = h.x + h.dir * hs + shake, hy = h.y - (86 - 14 - bob) * hs - 12 * hs;
     const sx = h.turnT > 0 ? Math.abs(Math.cos(Math.PI * (1 - h.turnT / 0.24))) : 1;
-    h.headS.setPosition(hx, hy).setScale(hs / RES * Math.max(0.08, sx), hs / RES);
+    h.headS.setPosition(hx, hy).setScale(hs * 1.25 / RES * Math.max(0.08, sx), hs * 1.25 / RES);
     const eyesOn = h.head === 'front' && sx > 0.5;
-    h.eyes.setVisible(eyesOn).setPosition(hx, hy).setAlpha(h.state === 'telegraph' ? 0.6 + Math.random() * 0.4 : (Math.sin(t / 700) > 0.96 ? 0.1 : 0.9));
+    h.eyes.setVisible(eyesOn).setPosition(hx, hy - 3.6 * hs).setScale(hs * 1.25 / RES).setAlpha(h.state === 'telegraph' ? 0.6 + Math.random() * 0.4 : (Math.sin(t / 700) > 0.96 ? 0.1 : 0.9));
   }
 
   // ---------------- golema paukica (potjera) ----------------

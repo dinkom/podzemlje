@@ -212,20 +212,32 @@
     // glava: sprijeda, sa strane, okrenuta unatrag
     sheet(scene, 'huk_glava', 30, 30, [{ name: 'front' }, { name: 'back' }], (c, f) => {
       const back = f.name === 'back';
-      c.fillStyle = '#4a3e2e';
-      c.beginPath(); c.moveTo(5, 9); c.lineTo(4, 1); c.lineTo(10, 6); c.lineTo(20, 6); c.lineTo(26, 1); c.lineTo(25, 9); c.closePath(); c.fill(); c.strokeStyle = OUTL; c.lineWidth = 0.9; c.stroke();
-      ell(c, 15, 15, 11, 10, back ? '#4a3e2e' : '#5a4c3a', OUTL, 1.1);
+      // čupavi pernati ovratnik i rogovi od perja
+      c.fillStyle = '#2e261c';
+      c.beginPath(); c.moveTo(6, 10); c.lineTo(2, 0); c.lineTo(9, 6); c.lineTo(21, 6); c.lineTo(28, 0); c.lineTo(24, 10); c.closePath(); c.fill(); c.strokeStyle = OUTL; c.lineWidth = 0.8; c.stroke();
+      c.fillStyle = '#3a3024';
+      c.beginPath(); for (let k = 0; k <= 16; k++) { const a = k / 16 * Math.PI * 2, r = k % 2 ? 13.5 : 11.5; c.lineTo(15 + Math.cos(a) * r, 16 + Math.sin(a) * r * 0.95); } c.closePath(); c.fill(); c.stroke();
       if (back) {
-        for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) { c.beginPath(); c.arc(7 + k * 5 + (r % 2) * 2.5, 10 + r * 5, 2.8, 0, Math.PI); c.strokeStyle = 'rgba(20,14,8,0.6)'; c.lineWidth = 0.6; c.stroke(); }
+        for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) { c.beginPath(); c.arc(7 + k * 5 + (r % 2) * 2.5, 11 + r * 5, 2.8, 0, Math.PI); c.strokeStyle = 'rgba(10,6,3,0.7)'; c.lineWidth = 0.6; c.stroke(); }
         return;
       }
-      // lice-disk
-      c.fillStyle = '#d8ccb0'; c.beginPath(); c.ellipse(10.5, 15, 6, 6.4, 0, 0, Math.PI * 2); c.ellipse(19.5, 15, 6, 6.4, 0, 0, Math.PI * 2); c.fill();
-      c.strokeStyle = 'rgba(80,60,30,0.6)'; c.lineWidth = 0.5; for (let k = 0; k < 8; k++) { const a = k * 0.785; c.beginPath(); c.moveTo(10.5 + Math.cos(a) * 3.6, 15 + Math.sin(a) * 3.6); c.lineTo(10.5 + Math.cos(a) * 6, 15 + Math.sin(a) * 6.3); c.moveTo(19.5 + Math.cos(a) * 3.6, 15 + Math.sin(a) * 3.6); c.lineTo(19.5 + Math.cos(a) * 6, 15 + Math.sin(a) * 6.3); c.stroke(); }
-      ell(c, 10.5, 15, 3.4, 3.4, '#ffd23a', OUTL, 0.6); ell(c, 19.5, 15, 3.4, 3.4, '#ffd23a', OUTL, 0.6);
-      ell(c, 10.5, 15, 1.7, 1.9, '#0a0604', null); ell(c, 19.5, 15, 1.7, 1.9, '#0a0604', null);
-      ell(c, 11.2, 14.2, 0.6, 0.6, '#fff', null); ell(c, 20.2, 14.2, 0.6, 0.6, '#fff', null);
-      c.fillStyle = '#3a3020'; c.beginPath(); c.moveTo(13.6, 18); c.lineTo(16.4, 18); c.lineTo(15, 23); c.closePath(); c.fill(); c.strokeStyle = OUTL; c.lineWidth = 0.5; c.stroke();
+      // ljudsko lice — blijedo, upalo, izduženo
+      c.fillStyle = radial(c, 13, 12, 1, 13, [[0, '#d6cfbf'], [0.7, '#a59c88'], [1, '#6e6656']]);
+      c.beginPath(); c.moveTo(15, 5); c.bezierCurveTo(24, 5, 24, 17, 20, 25); c.quadraticCurveTo(15, 29, 10, 25); c.bezierCurveTo(6, 17, 6, 5, 15, 5); c.fill();
+      c.strokeStyle = OUTL; c.lineWidth = 0.6; c.stroke();
+      // upali obrazi
+      c.fillStyle = 'rgba(40,30,20,0.45)'; c.beginPath(); c.ellipse(9.8, 19, 1.4, 3, 0.2, 0, Math.PI * 2); c.ellipse(20.2, 19, 1.4, 3, -0.2, 0, Math.PI * 2); c.fill();
+      // crne duplje i ogromne okrugle oči
+      [[10.5, 13], [19.5, 13]].forEach(([x, y]) => {
+        c.fillStyle = '#0a0604'; c.beginPath(); c.arc(x, y, 4.3, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#ffcf2a'; c.beginPath(); c.arc(x, y, 3.3, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = '#b01818'; c.lineWidth = 0.6; c.stroke();
+        c.fillStyle = '#000'; c.beginPath(); c.arc(x, y, 0.7, 0, Math.PI * 2); c.fill();
+      });
+      // kljun preko usta, ispod usta pune ljudskih zuba
+      c.fillStyle = '#2a1a10'; c.beginPath(); c.moveTo(13.4, 16); c.lineTo(16.6, 16); c.lineTo(15, 21.5); c.closePath(); c.fill();
+      c.fillStyle = '#3a0608'; c.beginPath(); c.ellipse(15, 23.2, 3.6, 1.7, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#efe6cc'; for (let k = 0; k < 6; k++) c.fillRect(11.8 + k * 1.15, 22.1, 0.8, 1.1);
     });
     // svijetle oči iznad mraka
     sheet(scene, 'oci_huk', 16, 8, ['x'], (c) => {
@@ -267,19 +279,60 @@
       c.beginPath(); c.arc(34.5, 44, 3.4, Math.PI, 0); c.strokeStyle = '#7a7f88'; c.lineWidth = 1.4; c.stroke();
       ell(c, 34.5, 49, 1, 1, '#111', null);
     });
-    // Hukovo lice za jumpscare
+    // Hukovo lice za jumpscare — ljudsko lice u sovinom perju
     const t = scene.textures.createCanvas('lice_huk', 512, 512);
     const c = t.getContext();
     c.fillStyle = '#000'; c.fillRect(0, 0, 512, 512);
-    c.fillStyle = '#4a3e2e'; c.beginPath(); c.moveTo(60, 200); c.lineTo(40, 20); c.lineTo(170, 120); c.lineTo(342, 120); c.lineTo(472, 20); c.lineTo(452, 200); c.closePath(); c.fill();
-    c.fillStyle = '#5a4c3a'; c.beginPath(); c.ellipse(256, 290, 230, 210, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#d8ccb0'; c.beginPath(); c.ellipse(165, 270, 110, 120, 0, 0, Math.PI * 2); c.ellipse(347, 270, 110, 120, 0, 0, Math.PI * 2); c.fill();
-    [[165, 265], [347, 265]].forEach(([x, y]) => {
-      c.fillStyle = radial(c, x, y, 0, 80, [[0, '#fff6a0'], [0.5, '#ffd23a'], [1, '#c08a10']]); c.beginPath(); c.arc(x, y, 72, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#050302'; c.beginPath(); c.ellipse(x, y, 34, 40, 0, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#fff'; c.beginPath(); c.arc(x + 14, y - 16, 9, 0, Math.PI * 2); c.fill();
+    c.save(); c.translate(256, 262); c.rotate(-0.22);   // sovinski nagib glave
+    // rogovi i ovratnik od perja
+    c.fillStyle = '#241c14';
+    c.beginPath(); c.moveTo(-170, -120); c.lineTo(-215, -300); c.lineTo(-90, -200); c.lineTo(90, -200); c.lineTo(215, -300); c.lineTo(170, -120); c.closePath(); c.fill();
+    c.fillStyle = '#32291e';
+    c.beginPath(); for (let k = 0; k <= 48; k++) { const a = k / 48 * Math.PI * 2, r = (k % 2 ? 270 : 232) + Math.sin(k * 3.1) * 10; c.lineTo(Math.cos(a) * r, Math.sin(a) * r * 0.95 + 10); } c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 3;
+    for (let k = 0; k < 60; k++) { const a = k / 60 * Math.PI * 2; c.beginPath(); c.moveTo(Math.cos(a) * 175, Math.sin(a) * 175); c.lineTo(Math.cos(a) * 255, Math.sin(a) * 245); c.stroke(); }
+    // izduženo, upalo ljudsko lice
+    c.fillStyle = radial(c, -30, -70, 10, 280, [[0, '#e3dccb'], [0.55, '#b3a990'], [1, '#5e5644']]);
+    c.beginPath(); c.moveTo(0, -205); c.bezierCurveTo(175, -205, 165, 60, 95, 190); c.quadraticCurveTo(0, 255, -95, 190); c.bezierCurveTo(-165, 60, -175, -205, 0, -205); c.fill();
+    // perje izbija kroz kožu
+    c.strokeStyle = '#3a3024'; c.lineWidth = 4;
+    [[-120, -120, -0.6], [130, -90, 0.5], [-140, 70, -0.9], [120, 110, 0.8], [-60, -175, -0.2]].forEach(([x, y, a]) => {
+      for (let k = 0; k < 4; k++) { c.beginPath(); c.moveTo(x + k * 7, y + k * 5); c.lineTo(x + k * 7 + Math.cos(a - 1.2) * 40, y + k * 5 + Math.sin(a - 1.2) * 40); c.stroke(); }
     });
-    c.fillStyle = '#2a2016'; c.beginPath(); c.moveTo(225, 330); c.lineTo(287, 330); c.lineTo(256, 450); c.closePath(); c.fill();
+    // žile i pukotine
+    c.strokeStyle = 'rgba(70,40,40,0.55)'; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(25, -200); c.lineTo(12, -150); c.lineTo(38, -118); c.moveTo(-150, 30); c.lineTo(-118, 70); c.lineTo(-132, 120); c.stroke();
+    // upali obrazi
+    c.fillStyle = 'rgba(30,22,14,0.5)';
+    c.beginPath(); c.ellipse(-112, 70, 26, 70, 0.15, 0, Math.PI * 2); c.ellipse(112, 70, 26, 70, -0.15, 0, Math.PI * 2); c.fill();
+    // duplje i goleme oči
+    [[-78, -55, 1], [80, -55, 0.92]].forEach(([x, y, s]) => {
+      c.fillStyle = radial(c, x, y, 40, 105, [[0, '#060302'], [0.75, 'rgba(10,6,3,0.9)'], [1, 'rgba(10,6,3,0)']]);
+      c.beginPath(); c.arc(x, y, 105, 0, Math.PI * 2); c.fill();
+      c.fillStyle = radial(c, x, y, 0, 72 * s, [[0, '#fff7b0'], [0.45, '#ffcc1a'], [0.85, '#d07a00'], [1, '#7a1a08']]);
+      c.beginPath(); c.arc(x, y, 72 * s, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = 'rgba(190,20,20,0.75)'; c.lineWidth = 2.5;
+      for (let k = 0; k < 9; k++) { const a = k * 0.7 + 0.3; c.beginPath(); c.moveTo(x + Math.cos(a) * 70 * s, y + Math.sin(a) * 70 * s); c.lineTo(x + Math.cos(a + 0.15) * 46 * s, y + Math.sin(a + 0.15) * 46 * s); c.lineTo(x + Math.cos(a - 0.1) * 30 * s, y + Math.sin(a - 0.1) * 30 * s); c.stroke(); }
+      c.fillStyle = '#000'; c.beginPath(); c.arc(x, y, 9 * s, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(x + 20, y - 24, 6, 0, Math.PI * 2); c.fill();
+    });
+    // crne suze iz očiju
+    c.strokeStyle = 'rgba(15,8,5,0.75)'; c.lineCap = 'round';
+    [[-95, 10, 9], [-70, 14, 6], [92, 12, 8], [66, 16, 5]].forEach(([x, y, w]) => { c.lineWidth = w; c.beginPath(); c.moveTo(x, y); c.bezierCurveTo(x - 4, y + 40, x + 4, y + 70, x - 2, y + 105); c.stroke(); });
+    // razjapljena usta (vrisak) s iglastim zubima
+    const q = (t, a, b, k) => (1 - t) * (1 - t) * a + 2 * (1 - t) * t * k + t * t * b;
+    c.fillStyle = '#1a0204';
+    c.beginPath(); c.moveTo(-82, 108); c.quadraticCurveTo(0, 128, 82, 108); c.quadraticCurveTo(0, 290, -82, 108); c.fill();
+    c.fillStyle = radial(c, 0, 175, 5, 70, [[0, '#000'], [1, 'rgba(60,4,8,0)']]); c.beginPath(); c.ellipse(0, 172, 50, 40, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#e9dfc0';
+    for (let i = 0; i < 13; i++) { const t = (i + 0.5) / 13, x = -82 + 164 * t, y = q(t, 108, 108, 128); const L = 18 + Math.sin(t * Math.PI) * 14; c.beginPath(); c.moveTo(x - 5, y - 1); c.lineTo(x + 5, y - 1); c.lineTo(x + 0.5, y + L); c.closePath(); c.fill(); }
+    for (let i = 0; i < 11; i++) { const t = (i + 0.5) / 11, x = -82 + 164 * t, y = q(t, 108, 108, 290); const L = 14 + Math.sin(t * Math.PI) * 12; c.beginPath(); c.moveTo(x - 5, y + 1); c.lineTo(x + 5, y + 1); c.lineTo(x - 0.5, y - L); c.closePath(); c.fill(); }
+    // zakrivljeni kljun preko nosa, do usta
+    c.fillStyle = radial(c, -6, -10, 2, 90, [[0, '#4a3624'], [1, '#140c06']]);
+    c.beginPath(); c.moveTo(-28, -20); c.quadraticCurveTo(0, -40, 28, -20); c.quadraticCurveTo(22, 60, 2, 118); c.quadraticCurveTo(-4, 92, -28, -20); c.fill();
+    c.strokeStyle = 'rgba(255,240,210,0.25)'; c.lineWidth = 3; c.beginPath(); c.moveTo(-10, -18); c.quadraticCurveTo(-6, 40, 0, 100); c.stroke();
+    c.restore();
+    c.fillStyle = radial(c, 256, 250, 150, 380, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.85)']]); c.fillRect(0, 0, 512, 512);
     t.refresh();
   });
 
