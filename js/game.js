@@ -617,7 +617,7 @@ class GameScene extends Phaser.Scene {
       return;
     }
     const dx = p.x - w.x, dy = (p.y - 6) - w.y, d = Math.hypot(dx, dy);
-    if (!st.hidden && !st.dead && d < 170) { w.x += dx / d * 34 * dt; w.y += dy / d * 34 * dt; }
+    if (!st.hidden && !st.dead && d < 200) { w.x += dx / d * 46 * dt; w.y += dy / d * 46 * dt; }
     else { const hx = w.hx - w.x, hy = w.hy - w.y, hd = Math.hypot(hx, hy); if (hd > 1) { w.x += hx / hd * 22 * dt; w.y += hy / hd * 22 * dt; } }
     const bx = w.x + Math.sin(t * 1.3 + w.ph) * 4, by = w.y + Math.sin(t * 2.1 + w.ph) * 3;
     w.glow.setPosition(bx, by).setScale(0.45 + Math.sin(t * 5 + w.ph) * 0.06);
@@ -692,7 +692,7 @@ class GameScene extends Phaser.Scene {
 
   hukTelegraph(h) {
     if (!h.alive || h.cameo || h.state === 'telegraph' || h.state === 'swoop') return;
-    h.state = 'telegraph'; h.t = h.head === 'front' ? 0.75 : 1.0;
+    h.state = 'telegraph'; h.t = h.head === 'front' ? 0.6 : 0.85;
     this.hukTurnHead(h, 'front');
     h.tx = this.player.x; h.ty = this.player.y;
     h.dir = h.tx > h.x ? 1 : -1;
@@ -708,7 +708,7 @@ class GameScene extends Phaser.Scene {
     const inArea = p.x > h.x1 - 60 && p.x < h.x2 + 60;
     const looking = h.head === 'front' && h.turnT <= 0;
     const moving = Math.abs(p.body.velocity.x) > 40 || Math.abs(p.body.velocity.y) > 80;
-    const sees = visible && inArea && looking && (d < 130 || (st.flash && d < 340) || (moving && !st.sneak && d < 300) || (st.gliding && d < 360));
+    const sees = visible && inArea && looking && (d < 130 || (st.flash && d < 340) || (moving && !st.sneak && d < 340) || (st.gliding && d < 400));
     const talons = () => visible && !Dev.is('god') && Math.hypot(p.x - h.x, p.y - (h.y - 10 * h.hs)) < 17;
 
     if (h.state === 'cameo') {
@@ -716,7 +716,7 @@ class GameScene extends Phaser.Scene {
       const cam = this.cameras.main;
       if (!h.cTrig && visible && p.x > h.x - 250 && p.x < h.x + 60) {
         h.cTrig = true; h.t = 0; h.spot = true; this.taken.add(h.id);
-        st.lock = 4.6; p.body.setVelocityX(0); st.flash = false;
+        st.lock = 5.8; p.body.setVelocityX(0); st.flash = false;
         cam.stopFollow(); cam.pan(h.x, h.y - 30, 1100, 'Sine.easeInOut');
         SFX.sting(); Buzz([60, 40, 60]);
       }
@@ -726,26 +726,30 @@ class GameScene extends Phaser.Scene {
         if (h.t > 2.3 && !h.c2) { h.c2 = true; this.hukTurnHead(h, 'front'); }
         if (h.t > 2.6 && !h.c3) { h.c3 = true; SFX.hoot(); SFX.screech(); cam.shake(350, 0.005); Buzz([100, 50, 200]); }
         if (h.t > 3.6) {
-          h.state = 'leave'; h.vx = 130; h.vy = -120; h.dir = 1; SFX.flap(0.2, 0);
-          cam.pan(p.x, p.y + 18, 800, 'Sine.easeInOut', true, (c, k) => { if (k === 1) { c.startFollow(p, true, 0.12, 0.12); c.setFollowOffset(0, 18); } });
+          h.state = 'leave'; h.vx = 130; h.vy = -120; h.dir = 1; h.lt = 0; SFX.flap(0.2, 0);
         }
       }
     } else if (h.state === 'leave') {
       h.x += h.vx * dt; h.y += h.vy * dt; h.vy -= 20 * dt;
       this.hukFlapSound(h, dt, d);
-      if (h.y < this.cameras.main.worldView.y - 220 || h.y < -200) { h.alive = false; [h.body, h.headS, h.eyes].forEach(o => o.destroy()); return; }
+      h.lt += dt;
+      if (h.cTrig && !h.pb && h.lt > 1.4) {
+        h.pb = true; st.lock = 0.8;
+        this.cameras.main.pan(p.x, p.y + 18, 800, 'Sine.easeInOut', true, (c, k) => { if (k === 1) { c.startFollow(p, true, 0.12, 0.12); c.setFollowOffset(0, 18); } });
+      }
+      if ((h.pb || !h.cTrig) && (h.y < this.cameras.main.worldView.y - 220 || h.y < -200)) { h.alive = false; [h.body, h.headS, h.eyes].forEach(o => o.destroy()); return; }
     } else if (h.state === 'perch' || h.state === 'ground') {
       h.lookT -= dt;
       if (h.lookT <= 0 && h.turnT <= 0) {
         const to = h.head === 'front' ? 'back' : 'front';
         this.hukTurnHead(h, to);
-        h.lookT = to === 'front' ? 2.4 + Math.random() * 1.6 : 1.7 + Math.random() * 1.4;
+        h.lookT = to === 'front' ? 2.6 + Math.random() * 1.8 : 1.2 + Math.random() * 1.1;
       }
       if (h.state === 'ground') {
         h.t -= dt;
         h.walk = false;
         if (h.turnT <= 0 && Math.random() < 0.004) h.dir *= -1;
-        const nx = h.x + h.dir * 26 * dt, gy = this.hukGroundY(nx + h.dir * 10, h.y - 10, true);
+        const nx = h.x + h.dir * 42 * dt, gy = this.hukGroundY(nx + h.dir * 10, h.y - 10, true);
         if (gy !== null && Math.abs(gy - h.y) < 4 && nx > h.x1 && nx < h.x2) { h.x = nx; h.walk = true; } else h.dir *= -1;
         if (talons() || (visible && d < 24)) { this.die('huk'); }
         if (h.t <= 0) { h.state = 'return'; }
@@ -758,7 +762,7 @@ class GameScene extends Phaser.Scene {
       if (h.t <= 0) {
         h.state = 'swoop'; h.t = 2.6;
         const ax = h.tx - h.x, ay = (h.ty - 4) - (h.y - 10 * h.hs), ad = Math.hypot(ax, ay) || 1;
-        h.vx = ax / ad * 250; h.vy = ay / ad * 250;
+        h.vx = ax / ad * 290; h.vy = ay / ad * 290;
         SFX.screech(); Buzz(80);
       }
     } else if (h.state === 'swoop') {
@@ -768,20 +772,20 @@ class GameScene extends Phaser.Scene {
       const ax = h.tx - h.x, ay = (h.ty - 4) - (h.y - 10 * h.hs);
       const want = Math.atan2(ay, ax), cur = Math.atan2(h.vy, h.vx);
       const diff = Phaser.Math.Angle.Wrap(want - cur);
-      const ang = cur + Phaser.Math.Clamp(diff, -2.2 * dt, 2.2 * dt);
-      h.vx = Math.cos(ang) * 250; h.vy = Math.sin(ang) * 250;
+      const ang = cur + Phaser.Math.Clamp(diff, -2.8 * dt, 2.8 * dt);
+      h.vx = Math.cos(ang) * 290; h.vy = Math.sin(ang) * 290;
       h.x += h.vx * dt; h.y += h.vy * dt;
       h.dir = h.vx > 0 ? 1 : -1;
       this.hukFlapSound(h, dt, d);
       if (talons()) { this.die('huk'); return; }
       const gy = this.hukGroundY(h.x, h.y - 30, true);
-      if (gy !== null && h.y >= gy && h.vy > 0) { h.y = gy; h.state = 'ground'; h.t = 3.4; h.lookT = 1.4; SFX.land(); this.hukTurnHead(h, 'front'); }
+      if (gy !== null && h.y >= gy && h.vy > 0) { h.y = gy; h.state = 'ground'; h.t = 4.5; h.lookT = 1.6; SFX.land(); this.hukTurnHead(h, 'front'); }
       else if (h.t <= 0 || h.x < h.x1 - 80 || h.x > h.x2 + 80 || h.y > this.worldH) h.state = 'return';
     } else if (h.state === 'return') {
       if (!h.home) h.home = h.perches.reduce((a, b) => Math.abs(b.x - h.x) < Math.abs(a.x - h.x) ? b : a);
       const ax = h.home.x - h.x, ay = h.home.y - h.y, ad = Math.hypot(ax, ay);
       if (ad < 4) { h.x = h.home.x; h.y = h.home.y; h.home = null; h.state = 'perch'; h.lookT = 2.2; }
-      else { h.x += ax / ad * 140 * dt; h.y += ay / ad * 140 * dt; h.dir = ax > 0 ? 1 : -1; this.hukFlapSound(h, dt, d); }
+      else { h.x += ax / ad * 170 * dt; h.y += ay / ad * 170 * dt; h.dir = ax > 0 ? 1 : -1; this.hukFlapSound(h, dt, d); }
       if (talons()) { this.die('huk'); return; }
     }
     this.drawHuk(h);
@@ -950,7 +954,7 @@ class GameScene extends Phaser.Scene {
     const mud = this.mudDepth(p.x, this.feet(p));
     if (mud >= 0) {
       if (!st.inMud) { SFX.squelch(0.25); st.inMud = true; }
-      if (b.velocity.y > 16) b.setVelocityY(16);
+      if (b.velocity.y > 21) b.setVelocityY(21);
       if (mud > 17 && !Dev.is('god')) { this.sink(); return; }
     } else st.inMud = false;
     if (wet && !st.wasWet && b.velocity.y > 60) { SFX.splash(0.25); this.noise(p.x, p.y, 160); }

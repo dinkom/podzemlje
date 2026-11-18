@@ -287,153 +287,199 @@
   const { grid, at, door } = Level.tools;
   const trunkOf = (G) => { G.trunks = []; return (x1, y1, x2, y2) => { for (let y = y1; y <= y2; y++) for (let x = x1; x <= x2; x++) G.trunks.push([x, y]); }; };
 
-  // ZONA 1: RUB ŠUME — lebdenje, Huk se pokaže, pa nakon prvog ključa lovi
+  // ---------- graditelj staze (kursor s lijeva na desno) ----------
+  function course(W, H, GR) {
+    const G = grid(W, H), trunk = trunkOf(G);
+    G.carve(0, 0, W - 1, GR - 1);
+    const S = GR - 1;
+    const c = { G, X: 0, O: [], doors: [], S, GR, trunk };
+    const cnt = {};
+    c.put = (type, x, y = S, id) => { const p = { checkpoint: 'C', note: 'N', battery: 'B', key: 'K', cabinet: 'o', crawler: 'b', spider: 's', wisp: 'w' }[type] || type; id = id || p + (cnt[p] = (cnt[p] || 0) + 1); c.O.push({ type, id, ...at(x, y) }); return c; };
+    c.flat = (n) => { c.X += n; return c; };
+    c.pit = (n, d = 3) => { G.carve(c.X, GR, c.X + n - 1, GR + d); G.spikes(c.X, c.X + n - 1, GR + d); c.X += n; return c; };
+    c.hill = (n, h) => { G.fill(c.X, GR - h, c.X + n - 1, GR - 1); c.X += n; return c; };
+    c.glidePit = (n) => { c.hill(3, 2); return c.pit(n, 4); };
+    // padajuće grane iznad jame
+    c.crumbles = (n) => { const x0 = c.X; c.pit(n); for (let x = x0 + 1; x + 1 < x0 + n; x += 3) G.crumble(x, x + 1, S); return c; };
+    // stablo: deblo, stepenice od grana, krošnja na redu `top`
+    c.tree = (top, w = 20) => {
+      const x0 = c.X, tx = x0 + 8;
+      trunk(tx, top - 1, tx + 2, GR - 1);
+      for (let y = top + 2, k = 0; y <= GR - 2; y += 2, k++) k % 2 ? G.plat(tx - 4, tx - 1, y) : G.plat(tx - 6, tx - 3, y);
+      if ((GR - 2 - top) % 2) G.plat(tx - 5, tx - 2, GR - 1);
+      G.plat(x0, x0 + w, top);
+      c.X += w + 1;
+      return { x0, x1: x0 + w, tx, top };
+    };
+    // suho stablo s granom (Hukovo sjedalo)
+    c.dead = (h) => { const x0 = c.X; trunk(x0 + 4, GR - h - 1, x0 + 5, GR - 1); G.plat(x0, x0 + 9, GR - h); c.X += 10; return at(x0 + 5, GR - h - 1); };
+    // stijena s vratima (preko nje se ne može preletjeti)
+    c.door = (id) => { G.fill(c.X, 0, c.X + 5, GR - 5); G.carve(c.X + 2, GR - 4, c.X + 3, GR - 1, 'D'); c.doors.push(door(id, c.X + 2, GR - 4)); c.X += 6; return c; };
+    c.mud = (n) => { G.carve(c.X, GR, c.X + n - 1, GR, 'U'); c.X += n; return c; };
+    c.logs = (n) => { const x0 = c.X; c.mud(n); for (let x = x0 + 2; x + 1 < x0 + n - 1; x += 4) G.crumble(x, x + 1, S); return c; };
+    c.web = (x, y1, y2) => { for (let y = y1; y <= y2; y++) G.g[y][x] = 'W'; return c; };
+    c.pillar = (h) => { G.fill(c.X, GR - h, c.X + 2, GR - 1); c.X += 3; return c; };
+    return c;
+  }
+
+  // ZONA 1: RUB ŠUME — lebdenje, Huk se pokaže, a od prvog ključa lovi (poslije i drugi)
   function rubSume() {
-    const W = 252, H = 32, G = grid(W, H), { carve, plat, spikes, crumble, fill } = G;
-    const trunk = trunkOf(G);
-    carve(0, 0, W - 1, 23);                      // otvoreno nebo, tlo od reda 24
-    carve(14, 24, 15, 27); spikes(14, 15, 27);   // mala jama
-    fill(19, 22, 23, 23);                        // brežuljak za zalet
-    carve(24, 24, 32, 28); spikes(24, 32, 28);   // široka jama — samo lebdenjem
-    // prvo veliko stablo
-    trunk(50, 9, 52, 23);
-    [22, 18, 14, 10].forEach(y => plat(44, 47, y)); [20, 16, 12].forEach(y => plat(46, 49, y));
-    plat(42, 58, 8); crumble(59, 60, 8); plat(63, 68, 8);
-    carve(70, 24, 92, 29); spikes(70, 92, 29);   // klanac
-    // suho stablo — Hukovo
-    trunk(108, 12, 109, 23); plat(104, 113, 11);
-    carve(120, 24, 123, 26); spikes(120, 123, 26);
-    // drugo stablo, prvi ključ u krošnji
-    trunk(135, 9, 137, 23);
-    [22, 18, 14, 10].forEach(y => plat(129, 132, y)); [20, 16, 12].forEach(y => plat(131, 134, y));
-    plat(126, 146, 8);
-    carve(148, 24, 158, 29); spikes(148, 158, 29);   // trnovita jaruga — samo s krošnje
-    trunk(162, 15, 162, 23); plat(159, 166, 14);
-    fill(170, 0, 175, 19); carve(172, 20, 173, 23, 'D');   // stijena s vratima
-    // livada pod Hukovim stablima
-    trunk(190, 13, 191, 23); plat(186, 195, 12);
-    carve(203, 24, 210, 28); spikes(203, 210, 28); crumble(205, 206, 23); crumble(208, 209, 23);
-    // visoko stablo, drugi ključ
-    trunk(218, 6, 220, 23);
-    [22, 18, 14, 10].forEach(y => plat(212, 215, y)); [20, 16, 12, 8].forEach(y => plat(214, 217, y));
-    plat(210, 230, 6);
-    trunk(235, 13, 236, 23); plat(232, 240, 12);
-    fill(242, 0, 247, 19); carve(244, 20, 245, 23, 'D');
-    const objects = [
-      { type: 'checkpoint', id: 'C1', ...at(5, 23) }, { type: 'note', id: 'N1', ...at(9, 23) }, { type: 'battery', id: 'B1', ...at(18, 23) },
-      { type: 'crawler', id: 'b1', ...at(38, 23) }, { type: 'cabinet', id: 'o1', ...at(41, 23) }, { type: 'battery', id: 'B2', ...at(45, 21) },
-      { type: 'spider', id: 's1', ...at(55, 9) }, { type: 'battery', id: 'B3', ...at(53, 7) }, { type: 'spider', id: 's2', ...at(65, 9) },
-      { type: 'checkpoint', id: 'C2', ...at(96, 23) }, { type: 'note', id: 'N2', ...at(99, 23) }, { type: 'hukCameo', id: 'h0', ...at(110, 10) },
-      { type: 'cabinet', id: 'o2', ...at(114, 23) }, { type: 'crawler', id: 'b2', ...at(117, 23) }, { type: 'crawler', id: 'b3', ...at(126, 23) },
-      { type: 'battery', id: 'B4', ...at(130, 21) }, { type: 'battery', id: 'B5', ...at(132, 15) }, { type: 'spider', id: 's3', ...at(140, 9) },
-      { type: 'key', id: 'K1', ...at(145, 7) },
-      { type: 'checkpoint', id: 'C3', ...at(165, 23) }, { type: 'cabinet', id: 'o3', ...at(168, 23) },
-      { type: 'note', id: 'N3', ...at(177, 23) }, { type: 'cabinet', id: 'o4', ...at(181, 23) }, { type: 'crawler', id: 'b4', ...at(197, 23) },
-      { type: 'cabinet', id: 'o5', ...at(200, 23) }, { type: 'battery', id: 'B6', ...at(212, 23) }, { type: 'cabinet', id: 'o6', ...at(223, 23) },
-      { type: 'battery', id: 'B7', ...at(213, 17) }, { type: 'spider', id: 's4', ...at(224, 7) }, { type: 'key', id: 'K2', ...at(229, 5) },
-      { type: 'cabinet', id: 'o7', ...at(238, 23) }, { type: 'checkpoint', id: 'C4', ...at(241, 23) }, { type: 'exit', id: 'E', ...at(249, 23) },
+    const c = course(440, 32, 24), G = c.G, S = c.S;
+    c.put('checkpoint', 4).put('note', 8, S, 'N1').flat(12);
+    c.pit(2).flat(3).put('battery', c.X - 1).glidePit(9).flat(3).put('crawler', c.X).flat(3).put('cabinet', c.X).flat(2);
+    let t = c.tree(8);
+    c.put('spider', t.x0 + 5, 9).put('spider', t.x0 + 15, 9).put('battery', t.x0 + 2, t.top - 1);
+    G.crumble(c.X - 1, c.X, 8); G.crumble(c.X + 2, c.X + 3, 8);
+    c.pit(24, 5);
+    c.flat(3).put('checkpoint', c.X).put('note', c.X + 3, S, 'N2').flat(5);
+    const cam = c.dead(13); c.put('hukCameo', cam.x / TILE | 0, cam.y / TILE - 1 | 0, 'h0');
+    c.flat(2).put('cabinet', c.X).flat(2).pit(3).flat(2).put('crawler', c.X).flat(3).pit(2).flat(3).put('crawler', c.X - 1).flat(1);
+    t = c.tree(8);
+    c.put('spider', t.x0 + 6, 9).put('spider', t.x0 + 13, 9).put('battery', t.x0 + 2, t.top - 1).put('key', t.x1 - 1, 7, 'K1');
+    c.pit(11, 5);
+    const P1 = c.dead(10);
+    c.flat(1).put('checkpoint', c.X).flat(2).put('cabinet', c.X).flat(2).door('D1');
+    // dio 2 — Huk lovi
+    c.flat(2).put('note', c.X, S, 'N3').flat(3).put('cabinet', c.X).flat(4);
+    const P2 = c.dead(12);
+    c.flat(2).put('crawler', c.X).flat(2).crumbles(10).flat(2).put('cabinet', c.X).flat(5);
+    const P3 = c.dead(12);
+    c.flat(2).put('cabinet', c.X - 1).pit(3).flat(2).put('crawler', c.X).flat(2).pit(3).flat(3).put('battery', c.X - 1).flat(1);
+    t = c.tree(5, 18);
+    c.put('spider', t.x0 + 4, 6).put('spider', t.x0 + 14, 6).put('battery', t.x0 + 2, t.top - 1).put('key', t.x1 - 1, 4, 'K2');
+    // lanac stupova — samo lebdenjem
+    c.pit(6, 5).pillar(10).pit(8, 5).pillar(7).pit(8, 5);
+    c.flat(2).put('checkpoint', c.X).flat(3).put('cabinet', c.X).flat(3);
+    const P4 = c.dead(11);
+    c.flat(2).put('crawler', c.X).pit(3).flat(2).put('cabinet', c.X).flat(3).crumbles(10).flat(3).put('crawler', c.X).flat(4);
+    const P5 = c.dead(12);
+    c.flat(2).put('cabinet', c.X).flat(3).pit(3).flat(3).put('cabinet', c.X).flat(2).door('D2');
+    c.flat(3).put('note', c.X, S, 'N4').flat(4).put('exit', c.X).flat(4);
+    const huks = [
+      { id: 'H1', dormant: 'K1', perches: [cam, P1, P2, P3, P4, P5], x1: cam.x - 4 * TILE, x2: c.X * TILE },
+      { id: 'H2', dormant: 'K2', perches: [P4, P5, P3], x1: P3.x - 10 * TILE, x2: c.X * TILE },
     ];
-    const huks = [{ id: 'H1', dormant: 'K1', perches: [at(110, 10), at(162, 13), at(190, 11), at(236, 11)], x1: 100 * TILE, x2: 246 * TILE }];
     return {
-      theme: 'rub', W, H, grid: G.g, trunks: G.trunks, objects, monsters: [], huks, doors: [door('D1', 172, 20), door('D2', 244, 20)], start: at(3, 23), doorTex: 'vrata_suma',
+      theme: 'rub', W: 440, H: 32, grid: G.g, trunks: G.trunks, objects: c.O, monsters: [], huks, doors: c.doors, start: at(2, S), doorTex: 'vrata_suma',
       intro: 'Drži skok u zraku — krilca te nose!',
       notes: {
         N1: 'Krilca su mi narasla dok sam bio dolje.\n\nKad skočim i držim — lebdim.\nPolako, nečujno… skoro nečujno.',
         N2: 'Na suhom stablu nešto sjedi.\nNe miče se. Samo gleda.\n\nOči kao dva mjeseca.',
         N3: 'Huk okreće glavu skroz unatrag.\nDok mu oči svijetle — vidi sve.\n\nU grmu me ne vidi.\nAli krila čuje.',
+        N4: 'Bila su dvojica.\n\nIza stijene miriše na vodu i trulo lišće.\nMočvara.',
       },
     };
   }
 
-  // ZONA 2: MOČVARA — blato, bludna svjetla, Huk lovi
+  // ZONA 2: MOČVARA — blato, bludna svjetla, tri Huka
   function mocvara() {
-    const W = 240, H = 32, G = grid(W, H), { carve, plat, spikes, fill } = G;
-    const trunk = trunkOf(G);
-    carve(0, 0, W - 1, 23);
-    const mud = (x1, x2) => carve(x1, 24, x2, 24, 'U');
-    mud(18, 24); mud(40, 52); mud(70, 75); mud(100, 112); mud(150, 160); mud(190, 200);
-    fill(105, 24, 107, 24);                       // otočić s ključem
-    plat(43, 47, 23); plat(49, 52, 22); plat(101, 103, 23);
-    // suha stabla (Huk sjedi na granama)
-    trunk(33, 12, 34, 23); plat(30, 38, 14);
-    trunk(85, 10, 86, 23); plat(81, 90, 12);
-    trunk(140, 11, 141, 23); plat(136, 145, 13);
-    trunk(178, 12, 179, 23); plat(174, 183, 14);
-    trunk(214, 10, 215, 23); plat(210, 219, 12);
-    carve(60, 24, 63, 26); spikes(60, 63, 26);
-    carve(125, 20, 126, 23, 'D');
-    // udubina s drugim ključem
-    carve(165, 24, 185, 27); carve(166, 27, 184, 27, 'U'); plat(165, 167, 26); plat(183, 185, 26);
-    carve(225, 20, 226, 23, 'D');
-    const objects = [
-      { type: 'checkpoint', id: 'C1', ...at(5, 23) }, { type: 'note', id: 'N1', ...at(10, 23) }, { type: 'battery', id: 'B1', ...at(14, 23) },
-      { type: 'wisp', id: 'w1', ...at(22, 21) }, { type: 'cabinet', id: 'o1', ...at(28, 23) }, { type: 'battery', id: 'B2', ...at(45, 22) },
-      { type: 'wisp', id: 'w2', ...at(48, 18) }, { type: 'crawler', id: 'b1', ...at(56, 23) }, { type: 'cabinet', id: 'o2', ...at(66, 23) },
-      { type: 'battery', id: 'B3', ...at(78, 23) }, { type: 'cabinet', id: 'o3', ...at(92, 23) }, { type: 'wisp', id: 'w3', ...at(97, 20) },
-      { type: 'key', id: 'K1', ...at(106, 23) }, { type: 'wisp', id: 'w4', ...at(110, 20) }, { type: 'cabinet', id: 'o4', ...at(116, 23) },
-      { type: 'checkpoint', id: 'C2', ...at(121, 23) }, { type: 'note', id: 'N2', ...at(123, 23) },
-      { type: 'battery', id: 'B4', ...at(132, 23) }, { type: 'cabinet', id: 'o5', ...at(147, 23) }, { type: 'wisp', id: 'w5', ...at(155, 20) },
-      { type: 'battery', id: 'B5', ...at(162, 23) }, { type: 'key', id: 'K2', ...at(175, 27) }, { type: 'note', id: 'N3', ...at(166, 25) },
-      { type: 'crawler', id: 'b2', ...at(180, 26) },
-      { type: 'checkpoint', id: 'C3', ...at(188, 23) }, { type: 'wisp', id: 'w6', ...at(195, 20) }, { type: 'cabinet', id: 'o6', ...at(205, 23) },
-      { type: 'battery', id: 'B6', ...at(209, 23) }, { type: 'cabinet', id: 'o7', ...at(221, 23) }, { type: 'exit', id: 'E', ...at(234, 23) },
-    ];
+    const c = course(470, 34, 24), G = c.G, S = c.S;
+    c.put('checkpoint', 4).put('note', 8, S, 'N1').flat(11);
+    c.mud(6).flat(2).put('cabinet', c.X - 1).put('wisp', c.X + 4, S - 2).mud(9).flat(2).put('battery', c.X - 1).put('wisp', c.X + 3, S - 3).mud(8).flat(3);
+    const P1 = c.dead(11);
+    c.flat(2).put('cabinet', c.X - 1).pit(3).flat(2).put('crawler', c.X).flat(2);
+    c.put('wisp', c.X + 4, S - 2).put('wisp', c.X + 10, S - 3).logs(14).flat(3).put('checkpoint', c.X - 2).put('note', c.X + 1, S, 'N2').flat(3);
+    const P2 = c.dead(12);
+    c.flat(2).put('cabinet', c.X).flat(2);
+    c.put('wisp', c.X + 3, S - 2).mud(6); G.fill(c.X, 24, c.X + 2, 24); c.put('key', c.X + 1, S, 'K1').flat(3).put('wisp', c.X + 3, S - 2).mud(7);
+    c.flat(2).put('cabinet', c.X - 1).flat(1).pit(3).flat(2).put('crawler', c.X).flat(2);
+    const P3 = c.dead(11);
+    c.flat(1).put('cabinet', c.X).flat(2).door('D1');
+    // dio 2
+    c.flat(2).put('checkpoint', c.X).put('battery', c.X + 2).flat(4);
+    c.put('wisp', c.X + 3, S - 2).put('wisp', c.X + 8, S - 3).mud(10).flat(2).put('cabinet', c.X - 1).flat(2);
+    const P4 = c.dead(12);
+    c.flat(2).put('wisp', c.X + 6, S - 2).logs(16).flat(2).put('cabinet', c.X).flat(3);
+    // potopljena jama s drugim ključem
+    const x0 = c.X;
+    G.carve(x0, 24, x0 + 20, 27); G.carve(x0 + 1, 27, x0 + 19, 27, 'U'); G.plat(x0, x0 + 2, 26); G.plat(x0 + 18, x0 + 20, 26);
+    G.plat(x0 + 7, x0 + 8, 25); G.plat(x0 + 12, x0 + 13, 25);
+    c.put('note', x0 + 1, 25, 'N3').put('key', x0 + 10, 27, 'K2').put('crawler', x0 + 15, 27).put('wisp', x0 + 5, 24).put('wisp', x0 + 15, 23);
+    c.X += 21;
+    c.flat(2).put('battery', c.X).flat(2);
+    const P5 = c.dead(12);
+    c.flat(2).put('cabinet', c.X - 1).pit(3).flat(1).put('wisp', c.X + 4, S - 2).mud(9).flat(2).put('checkpoint', c.X).flat(3).put('cabinet', c.X).flat(2);
+    c.put('wisp', c.X + 4, S - 3).logs(12).flat(2);
+    const P6 = c.dead(11);
+    c.flat(2).put('crawler', c.X).flat(2).mud(7).flat(2).put('cabinet', c.X - 1).pit(3).flat(2).put('cabinet', c.X).flat(2).door('D2');
+    c.flat(4).put('exit', c.X).flat(4);
+    const mid = P3.x + 8 * TILE;
     const huks = [
-      { id: 'H1', perches: [at(34, 13), at(85, 11)], x1: 15 * TILE, x2: 124 * TILE },
-      { id: 'H2', perches: [at(140, 12), at(178, 13), at(214, 11)], x1: 127 * TILE, x2: 224 * TILE },
+      { id: 'H1', perches: [P1, P2, P3], x1: 14 * TILE, x2: mid },
+      { id: 'H2', perches: [P4, P5, P6], x1: mid, x2: c.X * TILE },
+      { id: 'H3', dormant: 'K2', perches: [P6, P5, P4], x1: mid, x2: c.X * TILE },
     ];
     return {
-      theme: 'mocvara', W, H, grid: G.g, trunks: G.trunks, objects, monsters: [], huks, doors: [door('D1', 125, 20), door('D2', 225, 20)], start: at(3, 23), doorTex: 'vrata_suma',
+      theme: 'mocvara', W: 470, H: 34, grid: G.g, trunks: G.trunks, objects: c.O, monsters: [], huks, doors: c.doors, start: at(2, S), doorTex: 'vrata_suma',
       notes: {
         N1: 'Blato vuče prema dolje.\nAko staneš u njemu, potone te.\n\nA svjetla iznad blata nisu krijesnice.',
-        N2: 'Huk sjedi na suhim granama.\nNe vidi te u grmu.\n\nAli čuje krila kad lebdiš.',
+        N2: 'Trula debla plutaju na blatu.\nNe drže dugo.\n\nHuk sjedi na suhim granama.\nČuje krila kad lebdiš.',
         N3: 'Netko je bacio ključ u najdublje blato.\n\nKao da je znao da ćeš doći.',
       },
     };
   }
 
-  // ZONA 3: PAUKOVA ŠUMA — ljepljive mreže, pauci, Huk i velika paukica
+  // ZONA 3: PAUKOVA ŠUMA — mreže, pauci, Huk, a u tunelu golema paukica
   function paukova() {
-    const W = 252, H = 37, G = grid(W, H), { carve, plat, spikes, crumble, fill } = G;
-    const trunk = trunkOf(G);
-    carve(0, 0, W - 1, 25);                       // tlo od reda 26
-    const web = (x, y1, y2) => { for (let y = y1; y <= y2; y++) G.g[y][x] = 'W'; };
-    web(22, 23, 25); web(41, 23, 25); web(78, 23, 25); web(99, 23, 25);
-    plat(19, 21, 24); plat(38, 40, 24); plat(75, 77, 24); plat(96, 98, 24);
-    // stablo s mrežom i prvim ključem
-    trunk(60, 10, 62, 25);
-    [24, 20, 16, 12].forEach(y => plat(55, 58, y)); [22, 18, 14, 10].forEach(y => plat(57, 59, y));
-    plat(52, 72, 8); web(66, 5, 7); web(70, 5, 7);
-    carve(84, 26, 89, 28); spikes(84, 89, 28);
-    trunk(110, 12, 111, 25); plat(106, 115, 13);
-    carve(120, 22, 121, 25, 'D');
-    // jama u donji tunel
-    carve(140, 26, 143, 27);
-    carve(100, 28, 240, 32);                      // tunel ispod (potjera)
-    spikes(120, 121, 32); web(130, 30, 32);
-    carve(160, 33, 165, 35); spikes(160, 165, 35); crumble(161, 162, 33); crumble(164, 165, 33);
-    web(178, 30, 32); spikes(190, 191, 32); web(205, 30, 32);
-    carve(212, 33, 217, 35); spikes(212, 217, 35); crumble(213, 214, 33); crumble(216, 217, 33);
-    spikes(226, 227, 32);
-    carve(236, 22, 240, 27); plat(236, 237, 31); plat(239, 240, 29); plat(239, 240, 27);
-    carve(243, 22, 244, 25, 'D');
-    const objects = [
-      { type: 'checkpoint', id: 'C1', ...at(5, 25) }, { type: 'note', id: 'N1', ...at(10, 25) }, { type: 'battery', id: 'B1', ...at(15, 25) },
-      { type: 'spider', id: 's1', ...at(30, 18) }, { type: 'cabinet', id: 'o1', ...at(33, 25) }, { type: 'battery', id: 'B2', ...at(39, 23) },
-      { type: 'crawler', id: 'b1', ...at(48, 25) }, { type: 'battery', id: 'B3', ...at(56, 23) }, { type: 'spider', id: 's2', ...at(64, 9) },
-      { type: 'battery', id: 'B4', ...at(58, 13) }, { type: 'key', id: 'K1', ...at(71, 7) }, { type: 'spider', id: 's3', ...at(54, 9) },
-      { type: 'cabinet', id: 'o2', ...at(75, 25) }, { type: 'spider', id: 's4', ...at(92, 14) }, { type: 'cabinet', id: 'o3', ...at(105, 25) },
-      { type: 'battery', id: 'B5', ...at(97, 23) }, { type: 'checkpoint', id: 'C2', ...at(116, 25) }, { type: 'note', id: 'N2', ...at(118, 25) },
-      { type: 'battery', id: 'B6', ...at(128, 25) }, { type: 'spider', id: 's5', ...at(134, 18) },
-      // tunel
-      { type: 'key', id: 'K2', ...at(102, 32) }, { type: 'note', id: 'N3', ...at(105, 32) }, { type: 'checkpoint', id: 'C3', ...at(147, 32) },
-      { type: 'battery', id: 'B7', ...at(150, 32) }, { type: 'crawler', id: 'b2', ...at(196, 32) }, { type: 'battery', id: 'B8', ...at(222, 32) },
-      { type: 'note', id: 'N4', ...at(246, 25) }, { type: 'exit', id: 'E', ...at(249, 25) },
+    const W = 372, H = 38, GR = 26;
+    const c = course(W, H, GR), G = c.G, S = c.S;
+    c.put('checkpoint', 4).put('note', 8, S, 'N1').flat(12);
+    c.web(c.X + 2, S - 2, S).put('spider', c.X + 5, 20).flat(6).pit(3).flat(2).put('cabinet', c.X).flat(2);
+    c.web(c.X + 1, S - 2, S).flat(3).put('crawler', c.X).flat(3);
+    let t = c.tree(9);
+    c.web(t.x0 + 9, 6, 8).web(t.x0 + 15, 6, 8).put('spider', t.x0 + 4, 10).put('spider', t.x0 + 12, 10).put('spider', t.x0 + 18, 10).put('battery', t.x0 + 2, t.top - 1);
+    G.crumble(c.X - 1, c.X, 9); G.crumble(c.X + 2, c.X + 3, 9); G.crumble(c.X + 5, c.X + 6, 9);
+    c.pit(20, 5);
+    c.flat(2).put('checkpoint', c.X).flat(3);
+    const P1 = c.dead(12);
+    c.web(c.X + 2, S - 2, S).flat(4).put('cabinet', c.X).flat(2).pit(3).flat(2).put('crawler', c.X).flat(3);
+    t = c.tree(7);
+    c.web(t.x0 + 6, 4, 6).web(t.x0 + 12, 4, 6).put('spider', t.x0 + 3, 8).put('spider', t.x0 + 9, 8).put('spider', t.x0 + 16, 8).put('battery', t.x0 + 2, t.top - 1).put('key', t.x1 - 1, 6, 'K1');
+    c.crumbles(9).flat(2);
+    const P2 = c.dead(12);
+    c.flat(1).put('cabinet', c.X).flat(2).door('D1');
+    // dio 2 — iznad tunela
+    c.flat(2).put('checkpoint', c.X).put('note', c.X + 2, S, 'N2').flat(5);
+    const tunA = c.X;
+    c.web(c.X + 2, S - 2, S).put('spider', c.X + 6, 19).flat(8).put('cabinet', c.X).flat(2).pit(3).flat(3).put('crawler', c.X).flat(2);
+    const P3 = c.dead(12);
+    c.web(c.X + 3, S - 2, S).flat(6).put('battery', c.X).flat(3).pit(2).flat(3).put('cabinet', c.X).flat(4);
+    // rupa u tunel
+    const hole = c.X;
+    G.carve(hole, GR, hole + 3, GR + 3);
+    c.flat(4).flat(10);
+    const P4 = c.dead(12);
+    c.flat(4);
+    // tunel ispod: od tunA do kraja potjere
+    const T1 = GR + 4, T2 = GR + 8, tunEnd = hole + 152;
+    G.carve(tunA, T1, tunEnd, T2);
+    c.put('key', tunA + 2, T2, 'K2').put('note', tunA + 5, T2, 'N3').put('checkpoint', hole + 8, T2).put('battery', hole + 11, T2);
+    // prepreke u tunelu (potjera ide desno od ključa)
+    const tun = (x, f) => f(x);
+    G.spikes(tunA + 14, tunA + 15, T2); c.web(tunA + 22, T2 - 2, T2); G.spikes(tunA + 30, tunA + 31, T2);
+    // od rupe nadesno
+    let x = hole + 16;
+    const tPit = (x, n) => { G.carve(x, T2 + 1, x + n - 1, T2 + 3); G.spikes(x, x + n - 1, T2 + 3); for (let k = x + 1; k + 1 < x + n; k += 3) G.crumble(k, k + 1, T2 + 1); };
+    tPit(x, 6); x += 10; c.web(x, T2 - 2, T2); x += 6; G.spikes(x, x + 1, T2); x += 6;
+    c.put('crawler', x, T2); x += 4; c.web(x, T2 - 2, T2); x += 5; tPit(x, 9); x += 13;
+    G.spikes(x, x + 1, T2); x += 4; G.plat(x, x + 2, T2 - 2); G.spikes(x + 3, x + 4, T2); x += 9; c.web(x, T2 - 3, T2); x += 5;
+    tPit(x, 6); x += 10; G.spikes(x, x + 1, T2); x += 5; c.web(x, T2 - 2, T2); x += 4; G.spikes(x, x + 1, T2); x += 6;
+    tPit(x, 9); x += 13; c.web(x, T2 - 2, T2); x += 5; G.spikes(x, x + 1, T2); x += 6;
+    // izlaz iz tunela gore
+    const up = x + 3;
+    G.fill(up + 5, T1, tunEnd, T2);
+    G.carve(up, GR - 4, up + 4, T1);
+    if (up + 30 > W) throw new Error('zona prekratka ' + up);
+    for (let y = T2 - 2, k = 0; y > GR - 2; y -= 2, k++) G.plat(k % 2 ? up + 3 : up, k % 2 ? up + 4 : up + 1, y);
+    c.X = up + 5;
+    c.flat(2).door('D2').flat(3).put('note', c.X, S, 'N4').flat(3).put('exit', c.X).flat(4);
+    const huks = [
+      { id: 'H1', perches: [P1, P2], x1: 12 * TILE, x2: P2.x + 6 * TILE },
+      { id: 'H2', perches: [P3, P4], x1: tunA * TILE, x2: (P4.x + 6 * TILE) },
     ];
-    const huks = [{ id: 'H1', perches: [at(110, 12), at(56, 7)], x1: 12 * TILE, x2: 119 * TILE }];
     return {
-      theme: 'paukova', W, H, grid: G.g, trunks: G.trunks, objects, monsters: [], huks, doors: [door('D1', 120, 22), door('D2', 243, 22)], start: at(3, 25), doorTex: 'vrata_suma',
-      darkWall: { key: 'K2', startX: 100 * TILE - 300, stopX: 236 * TILE - 20, speed: 84, style: 'spider', y: 33 * TILE - 52 },
+      theme: 'paukova', W, H, grid: G.g, trunks: G.trunks, objects: c.O, monsters: [], huks, doors: c.doors, start: at(2, S), doorTex: 'vrata_suma',
+      darkWall: { key: 'K2', stopX: up * TILE - 20, speed: 96, style: 'spider', y: (T2 + 1) * TILE - 52 },
       notes: {
         N1: 'Mreže su ljepljive.\nAko zapneš — tapkaj skok dok se ne otrgneš.\n\nIli ih unaprijed presijeci štapom.',
         N2: 'Ispod šume je tunel.\nTamo dolje spava ona.\nVelika. Stara. Gladna.',
