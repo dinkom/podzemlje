@@ -29,6 +29,7 @@
     }),
   });
 
+  const INTERIOR = new Set(['tvornica', 'metro', 'robna', 'toranj', 'atelje']);
   const city = (id) => ({
     // cigle i prozori umjesto kamena
     rock(c, m, T, R) {
@@ -40,7 +41,7 @@
         for (let x = (k % 2) * 6; x < 24; x += 12) { c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 6); c.stroke(); }
       }
       for (let i = 0; i < 4; i++) { c.fillStyle = R() < 0.5 ? 'rgba(255,220,200,0.06)' : 'rgba(0,0,0,0.18)'; c.fillRect(((R() * 2) | 0) * 12 + (R() < 0.5 ? 0 : 6), ((R() * 4) | 0) * 6, 12, 6); }
-      if (!m.mask && m.v === 0 && id !== 'tvornica') {
+      if (!m.mask && m.v === 0 && !INTERIOR.has(id)) {
         const lit = R() < 0.25;
         c.fillStyle = OUTL; c.fillRect(5, 4, 14, 17);
         c.fillStyle = lit ? '#e8b860' : '#141822'; c.fillRect(6.5, 5.5, 11, 14);
@@ -513,4 +514,5 @@
   }
 
   Level.addZones(2, [ulice, krovovi, tvornica]);
+  window.Grad = { city, cityKit };
 })();

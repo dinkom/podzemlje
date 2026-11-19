@@ -198,39 +198,42 @@ class EndScene extends Phaser.Scene {
   create() {
     const w = this.scale.width, h = this.scale.height, u = this.u = h / 360;
     this.finished = false;
-    this.cameras.main.setBackgroundColor('#05070b');
+    this.cameras.main.setBackgroundColor('#05060a');
     this.makeTextures(w, h);
-    this.add.image(0, 0, 'end_bg').setOrigin(0);
-    const lc = { x: w * 0.8, y: h * 0.42 };
-    this.light = this.add.image(lc.x, lc.y, 'end_light').setBlendMode(Phaser.BlendModes.ADD).setScale(h / 512 * 1.1);
+    this.add.image(0, 0, 'end_room').setOrigin(0);
+    // žarulja na žici
+    const bx = this.bx = w * 0.64, by = this.by = h * 0.36;
+    this.cord = this.add.graphics();
+    this.light = this.add.image(bx, by, 'end_light').setBlendMode(Phaser.BlendModes.ADD).setScale(h / 512 * 0.5).setAlpha(0);
+    this.bulb = this.add.graphics();
     this.rays = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-    this.add.image(0, 0, 'end_rock').setOrigin(0);
-    this.motes = this.add.particles(0, 0, 'glow', {
-      lifespan: 4000, speedX: { min: -30, max: -6 }, speedY: { min: -18, max: 8 }, scale: { start: 0.25 * u, end: 0 },
-      alpha: { start: 0.7, end: 0 }, tint: [0xfff1c8, 0xffd27a, 0xffffff], blendMode: 'ADD', frequency: 90,
-      emitZone: { type: 'random', source: new Phaser.Geom.Circle(lc.x, lc.y, h * 0.25) },
-    });
-    const groundY = h * 0.78;
-    const hs = u * 2.6 / RES;
+    this.lit = 0; this.swing = 0;
+    const groundY = h * 0.8, hs = u * 2.6 / RES;
     const hero = this.hero = this.add.sprite(-30 * u, groundY - 15 * hs * RES, 'hero', 'run0').setScale(hs);
     hero.play('hero-run');
     SFX.init();
-    // 1) moljac trči prema svjetlu
+    // 1) ulazi u mračnu sobu na vrhu zgrade
     const stepT = this.time.addEvent({ delay: 270, loop: true, callback: () => SFX.step(0.07) });
     this.tweens.add({
-      targets: hero, x: w * 0.56, duration: 3200, ease: 'Linear',
+      targets: hero, x: w * 0.42, duration: 3000, ease: 'Linear',
       onComplete: () => {
-        stepT.remove();
-        hero.anims.stop(); hero.setFrame('idle0');
-        // 2) zastane, ugasi svjetiljku — više mu ne treba
-        this.time.delayedCall(700, () => { SFX.click(); hero.setFrame('dark'); });
-        this.time.delayedCall(1500, () => {
-          // 3) raširi krilca i odleti u svjetlost
-          hero.play('hero-fly'); SFX.win();
-          this.tweens.add({ targets: hero, x: lc.x, y: lc.y, scale: hs * 0.35, duration: 3000, ease: 'Sine.easeIn' });
-          this.tweens.add({ targets: hero, alpha: 0, delay: 2200, duration: 800 });
-          this.tweens.add({ targets: this.light, scale: h / 512 * 3.2, duration: 3400, ease: 'Sine.easeIn' });
-          this.time.delayedCall(3000, () => this.finish());
+        stepT.remove(); hero.anims.stop(); hero.setFrame('idle0');
+        // 2) žarulja trepne… jednom… dvaput… i zasvijetli
+        [500, 700, 1200, 1350, 1900].forEach((d, k) => this.time.delayedCall(d, () => { this.lit = k % 2 ? 0 : 0.6; SFX.click(); }));
+        this.time.delayedCall(2400, () => { this.lit = 1; SFX.win(); });
+        // 3) ugasi svjetiljku — više mu ne treba
+        this.time.delayedCall(3200, () => { SFX.click(); hero.setFrame('dark'); });
+        // 4) raširi krilca i leti oko žarulje, pa u svjetlo
+        this.time.delayedCall(4000, () => {
+          hero.play('hero-fly');
+          this.orbit = { t: 0 };
+          this.tweens.add({ targets: hero, x: bx - 50 * u, y: by + 10 * u, scale: hs * 0.7, duration: 1400, ease: 'Sine.easeInOut',
+            onComplete: () => {
+              this.tweens.add({ targets: this.orbit, t: Math.PI * 4, duration: 4200, ease: 'Sine.easeIn',
+                onUpdate: () => { const a = this.orbit.t, r = (50 - this.orbit.t * 3.5) * u; hero.setPosition(bx + Math.cos(a + Math.PI) * r, by + 6 * u + Math.sin(a + Math.PI) * r * 0.45); hero.setFlipX(Math.sin(a + Math.PI) > 0); },
+                onComplete: () => this.finish() });
+              this.tweens.add({ targets: this.light, scale: h / 512 * 3.4, duration: 4200, ease: 'Sine.easeIn' });
+            } });
         });
       },
     });
@@ -241,39 +244,42 @@ class EndScene extends Phaser.Scene {
   }
 
   makeTextures(w, h) {
-    ['end_bg', 'end_rock', 'end_light'].forEach(k => { if (this.textures.exists(k)) this.textures.remove(k); });
-    let t = this.textures.createCanvas('end_bg', w, h), c = t.getContext();
-    let g = c.createLinearGradient(0, 0, w, 0);
-    g.addColorStop(0, '#05070b'); g.addColorStop(0.55, '#141a24'); g.addColorStop(1, '#3a3428');
-    c.fillStyle = g; c.fillRect(0, 0, w, h); t.refresh();
-    t = this.textures.createCanvas('end_light', 512, 512); c = t.getContext();
-    g = c.createRadialGradient(256, 256, 0, 256, 256, 256);
-    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.18, 'rgba(255,248,220,0.95)'); g.addColorStop(0.45, 'rgba(255,214,140,0.45)'); g.addColorStop(1, 'rgba(255,190,110,0)');
+    ['end_room', 'end_light'].forEach(k => { if (this.textures.exists(k)) this.textures.remove(k); });
+    let t = this.textures.createCanvas('end_light', 512, 512), c = t.getContext();
+    let g = c.createRadialGradient(256, 256, 0, 256, 256, 256);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.15, 'rgba(255,248,220,0.95)'); g.addColorStop(0.45, 'rgba(255,214,140,0.45)'); g.addColorStop(1, 'rgba(255,190,110,0)');
     c.fillStyle = g; c.fillRect(0, 0, 512, 512); t.refresh();
-    // stijene: ulaz u špilju koji se otvara prema svjetlu
-    t = this.textures.createCanvas('end_rock', w, h); c = t.getContext();
-    const R = Tiles.rng(99);
-    c.fillStyle = '#07080c';
-    c.beginPath(); c.moveTo(0, 0); c.lineTo(w, 0); c.lineTo(w, h * 0.06);
-    for (let x = w; x >= 0; x -= w / 24) c.lineTo(x, h * (0.08 + (x / w < 0.6 ? 0.1 : 0.02) + R() * 0.07) + (x / w > 0.62 ? -h * 0.1 * (x / w - 0.62) : 0));
-    c.closePath(); c.fill();
-    c.beginPath(); c.moveTo(0, h); c.lineTo(0, h * 0.78);
-    for (let x = 0; x <= w * 0.66; x += w / 30) c.lineTo(x, h * 0.78 + R() * h * 0.015);
-    c.lineTo(w * 0.7, h * 0.86); c.lineTo(w * 0.74, h); c.closePath(); c.fill();
-    c.fillStyle = 'rgba(255,214,140,0.25)'; c.fillRect(w * 0.45, h * 0.778, w * 0.21, 2);
-    c.fillStyle = '#07080c';
-    for (let i = 0; i < 9; i++) { const x = w * (0.05 + i * 0.07), hh = h * (0.05 + R() * 0.12); c.beginPath(); c.moveTo(x - 10, h * 0.12); c.lineTo(x + 10, h * 0.12); c.lineTo(x, h * 0.12 + hh); c.closePath(); c.fill(); }
+    // soba na vrhu zgrade: cigle, prozor s mjesecom, pod od dasaka
+    t = this.textures.createCanvas('end_room', w, h); c = t.getContext();
+    const R = Tiles.rng(77);
+    c.fillStyle = '#100c0e'; c.fillRect(0, 0, w, h);
+    const bh = h / 40, bw = bh * 2.2;
+    for (let y = 0, k = 0; y < h * 0.8; y += bh, k++) for (let x = (k % 2) * bw / 2 - bw; x < w; x += bw) { c.fillStyle = `rgba(${60 + R() * 30},${36 + R() * 16},${30 + R() * 14},0.55)`; c.fillRect(x + 1, y + 1, bw - 2, bh - 2); }
+    c.fillStyle = '#0a1028'; c.fillRect(w * 0.12, h * 0.2, w * 0.16, h * 0.32);
+    c.fillStyle = '#e8ecdc'; c.beginPath(); c.arc(w * 0.2, h * 0.3, h * 0.04, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#140c0c'; c.lineWidth = h * 0.012; c.strokeRect(w * 0.12, h * 0.2, w * 0.16, h * 0.32); c.beginPath(); c.moveTo(w * 0.2, h * 0.2); c.lineTo(w * 0.2, h * 0.52); c.moveTo(w * 0.12, h * 0.36); c.lineTo(w * 0.28, h * 0.36); c.stroke();
+    c.fillStyle = '#1c120c'; c.fillRect(0, h * 0.8, w, h * 0.2);
+    c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 2; for (let x = 0; x < w; x += w / 14) { c.beginPath(); c.moveTo(x, h * 0.8); c.lineTo(x - 30, h); c.stroke(); }
+    c.fillStyle = 'rgba(0,0,0,0.5)'; c.fillRect(0, h * 0.8, w, 3);
+    const v = c.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, w * 0.7); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.75)'); c.fillStyle = v; c.fillRect(0, 0, w, h);
     t.refresh();
   }
 
   update(time) {
-    if (this.finished || !this.rays) return;
-    const w = this.scale.width, h = this.scale.height, cx = w * 0.8, cy = h * 0.42, t = time / 1000;
+    if (this.finished || !this.bulb) return;
+    const w = this.scale.width, h = this.scale.height, u = this.u, t = time / 1000;
+    const bx = this.bx + Math.sin(t * 1.3) * 3 * u, by = this.by;
+    this.cord.clear(); this.cord.lineStyle(1.5 * u, 0x0a0806, 1); this.cord.beginPath(); this.cord.moveTo(this.bx, 0); this.cord.lineTo(bx, by - 10 * u); this.cord.strokePath();
+    const L = this.lit;
+    this.bulb.clear();
+    this.bulb.fillStyle(0x2a2420, 1); this.bulb.fillRect(bx - 4 * u, by - 12 * u, 8 * u, 6 * u);
+    this.bulb.fillStyle(L > 0.5 ? 0xfff6d8 : 0x6a6458, 1); this.bulb.fillCircle(bx, by, 8 * u);
+    this.light.setPosition(bx, by).setAlpha(L);
     this.rays.clear();
-    for (let i = 0; i < 7; i++) {
-      const a = -2.9 + i * 0.28 + Math.sin(t * 0.4 + i) * 0.05, len = h * 1.2, wd = 0.06;
-      this.rays.fillStyle(0xfff1c8, 0.05 + 0.03 * Math.sin(t * 1.3 + i * 2));
-      this.rays.fillTriangle(cx, cy, cx + Math.cos(a - wd) * len, cy + Math.sin(a - wd) * len, cx + Math.cos(a + wd) * len, cy + Math.sin(a + wd) * len);
+    if (L > 0.5) for (let i = 0; i < 9; i++) {
+      const a = i * 0.7 + Math.sin(t * 0.4 + i) * 0.05, len = h * 0.9, wd = 0.05;
+      this.rays.fillStyle(0xfff1c8, 0.04 + 0.03 * Math.sin(t * 1.3 + i * 2));
+      this.rays.fillTriangle(bx, by, bx + Math.cos(a - wd) * len, by + Math.sin(a - wd) * len, bx + Math.cos(a + wd) * len, by + Math.sin(a + wd) * len);
     }
   }
 
@@ -285,21 +291,20 @@ class EndScene extends Phaser.Scene {
       this.children.removeAll(true);
       this.tweens.killAll();
       const w = this.scale.width, h = this.scale.height, u = this.u;
-      // svijetli završni ekran — nebo
       if (this.textures.exists('end_sky')) this.textures.remove('end_sky');
       const t = this.textures.createCanvas('end_sky', w, h), c = t.getContext();
       const g = c.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, '#bfe0f5'); g.addColorStop(0.55, '#fdf3dc'); g.addColorStop(1, '#ffe2b8');
+      g.addColorStop(0, '#fff8e8'); g.addColorStop(0.6, '#fdf0d4'); g.addColorStop(1, '#ffe2b8');
       c.fillStyle = g; c.fillRect(0, 0, w, h);
-      const sun = c.createRadialGradient(w * 0.5, h * 0.95, 0, w * 0.5, h * 0.95, h * 0.6);
-      sun.addColorStop(0, 'rgba(255,255,255,0.9)'); sun.addColorStop(1, 'rgba(255,255,255,0)');
+      const sun = c.createRadialGradient(w * 0.5, h * 0.18, 0, w * 0.5, h * 0.18, h * 0.6);
+      sun.addColorStop(0, 'rgba(255,255,255,0.95)'); sun.addColorStop(1, 'rgba(255,255,255,0)');
       c.fillStyle = sun; c.fillRect(0, 0, w, h);
       t.refresh();
       this.add.image(0, 0, 'end_sky').setOrigin(0);
-      const moth = this.add.sprite(w * 0.5, h * 0.2, 'hero', 'fly0').setScale(u * 0.9 / RES).setAlpha(0.8).play('hero-fly');
-      this.tweens.add({ targets: moth, x: w * 0.62, y: h * 0.12, duration: 6000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-      this.add.text(w / 2, h * 0.36, 'Vidiš nebo.', { fontFamily: FONT, fontSize: Math.round(42 * u) + 'px', color: '#2a2a35' }).setOrigin(0.5);
-      this.add.text(w / 2, h * 0.36 + 52 * u, 'Moljac je izašao na svjetlo.\nPodzemlje je ostalo ispod njega… zasad.', { fontFamily: FONT, fontStyle: 'italic', align: 'center', fontSize: Math.round(16 * u) + 'px', color: '#5a5a66', lineSpacing: 6 * u }).setOrigin(0.5);
+      const moth = this.add.sprite(w * 0.5, h * 0.14, 'hero', 'fly0').setScale(u * 0.9 / RES).setAlpha(0.85).play('hero-fly');
+      this.tweens.add({ targets: moth, x: w * 0.56, y: h * 0.1, duration: 3000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      this.add.text(w / 2, h * 0.34, 'Svjetlo.', { fontFamily: FONT, fontSize: Math.round(44 * u) + 'px', color: '#2a2a35' }).setOrigin(0.5);
+      this.add.text(w / 2, h * 0.34 + 58 * u, 'Noćnik je pronašao svoje svjetlo.\nTihi, Huk i Krojač ostali su u mraku… zauvijek? Tko zna.', { fontFamily: FONT, fontStyle: 'italic', align: 'center', fontSize: Math.round(16 * u) + 'px', color: '#5a5a66', lineSpacing: 6 * u }).setOrigin(0.5);
       this.add.text(w / 2, h * 0.62, 'K R A J', { fontFamily: FONT, fontSize: Math.round(15 * u) + 'px', color: '#8a7a60' }).setOrigin(0.5);
       this.menuBtn = this.add.rectangle(w / 2, h * 0.78, 240 * u, 44 * u, 0xffffff, 0.55).setStrokeStyle(2 * u, 0x2a2a35, 0.7);
       this.add.text(w / 2, h * 0.78, 'Izbornik', { fontFamily: FONT, fontSize: Math.round(20 * u) + 'px', color: '#2a2a35' }).setOrigin(0.5);

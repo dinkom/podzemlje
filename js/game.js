@@ -89,6 +89,7 @@ class GameScene extends Phaser.Scene {
     this.wisps = []; this.huks = []; this.forest = !!T.forest;
     this.exit = null; this.pendingExit = null; this.wall = null;
     this.feathers = []; this.shocks = []; this.bossDark = false; this.slashRect = null; this.arena = null;
+    this.skare = []; this.blackout = false; this.kDarkT = null;
     this.lamps = []; this.konci = []; this.needles = []; this.lutke = []; this.krojaci = []; this.chaseK = null;
     this.threads = this.add.graphics().setDepth(12);
     for (const o of L.objects) {
@@ -108,7 +109,9 @@ class GameScene extends Phaser.Scene {
         const glow = this.add.image(o.x, o.y - 7, 'glow').setScale(o.type === 'key' ? 0.9 : 0.55).setDepth(61)
           .setTint(o.type === 'key' ? 0xffd25a : fly ? 0xd8ff7a : 0x6ee09a).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.5);
         this.items.push({ ...o, s, glow, baseY: o.y - 7 });
-      } else if (o.type === 'exit' && L.boss) {
+      } else if (o.type === 'skare') {
+        this.spawnSkare(o);
+      } else if (o.type === 'exit' && (L.boss || L.kboss)) {
         this.pendingExit = o;
       } else if (o.type === 'exit') {
         this.exit = { ...o, s: this.add.image(o.x, o.y, L.exitTex || 'izlaz').setOrigin(0.5, 1).setScale(1 / RES).setDepth(4) };
@@ -164,6 +167,8 @@ class GameScene extends Phaser.Scene {
     this.shockG = this.add.graphics().setDepth(16);
     this.kThreadG = this.add.graphics().setDepth(13);
     (L.krojaci || []).forEach(k => this.spawnKrojac(k));
+    if (L.kboss) { const B = L.kboss; this.spawnKrojac({ id: 'KB', x1: B.x1, x2: B.x2, cy: B.cy, x: (B.x1 + B.x2) / 2 }); const kb = this.krojaci[this.krojaci.length - 1]; Object.assign(kb, { boss: true, state: 'idle', hp: 36, maxHp: 36, phase: 0 }); }
+    this.buildTrains();
     this.drawCables();
     if (L.boss) { this.spawnHuk({ id: 'BOSS', perches: L.boss.perches, x1: L.boss.x1, x2: L.boss.x2 }); const bh = this.huks[this.huks.length - 1]; bh.boss = true; bh.state = 'idle'; bh.hp = bh.maxHp = 30; bh.phase = 0; }
     this.buildWind();
@@ -933,7 +938,7 @@ class GameScene extends Phaser.Scene {
   bossHurt(dir) {
     const st = this.st;
     if (st.invul > 0 || st.dead || Dev.is('god')) return;
-    this.hurt(dir, 'huk');
+    if (this.L.kboss) this.hurt(dir, 'monster', 'krojac'); else this.hurt(dir, 'huk');
   }
 
   updateBoss(h, dt) {
@@ -1119,9 +1124,9 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  spawnFeather(x, y, a, sp) {
-    const s = this.add.image(x, y, 'pero').setScale(1 / RES).setDepth(15).setRotation(a);
-    const glow = this.add.image(x, y, 'dot').setTint(0xffd23a).setBlendMode(Phaser.BlendModes.ADD).setDepth(61).setScale(0.6).setAlpha(0.7);
+  spawnFeather(x, y, a, sp, tex = 'pero', tint = 0xffd23a) {
+    const s = this.add.image(x, y, tex).setScale(1 / RES).setDepth(15).setRotation(a);
+    const glow = this.add.image(x, y, 'dot').setTint(tint).setBlendMode(Phaser.BlendModes.ADD).setDepth(61).setScale(0.6).setAlpha(0.7);
     this.feathers.push({ s, glow, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 3 });
   }
 
@@ -1164,6 +1169,315 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(1200, () => this.ui.toast('Huk je pao. Šuma je tiha.', 3000));
     if (o) {
       const s = this.add.image(o.x, o.y, 'izlaz').setOrigin(0.5, 1).setScale(1 / RES).setDepth(4).setAlpha(0);
+      this.tweens.add({ targets: s, alpha: 1, duration: 1500, delay: 800 });
+      this.exit = { ...o, s };
+    }
+  }
+
+  // ================= GRAD 2 =================
+  // ---------------- vlakovi (metro) ----------------
+  buildTrains() {
+    this.trains = (this.L.trains || []).map(t => ({ ...t, state: 'idle', x: 0, warned: false, g: this.add.graphics().setDepth(17), lamp: this.add.image(t.dir > 0 ? t.x1 : t.x2, t.y - 40, 'glow').setTint(0xffffff).setBlendMode(Phaser.BlendModes.ADD).setDepth(61).setAlpha(0) }));
+  }
+
+  updateTrains(dt) {
+    if (!this.trains || !this.trains.length) return;
+    const p = this.player, st = this.st, t = this.time.now / 1000;
+    this.trains.forEach(tr => {
+      const k = (t + tr.ph) % tr.period;
+      const near = p.x > tr.x1 - 400 && p.x < tr.x2 + 400;
+      const LEN = 620, SP = 720, travel = (tr.x2 - tr.x1 + LEN) / SP;
+      tr.g.clear();
+      if (k < tr.period - travel - 1.6) { tr.state = 'idle'; tr.lamp.setAlpha(0); tr.warned = false; return; }
+      if (k < tr.period - travel) {
+        tr.state = 'warn';
+        const q = (k - (tr.period - travel - 1.6)) / 1.6;
+        tr.lamp.setAlpha(0.3 + q * 0.7).setScale(0.6 + q * 1.4);
+        if (!tr.warned && near) { tr.warned = true; SFX.horn(); this.cameras.main.shake(1400, 0.002); }
+        return;
+      }
+      tr.state = 'pass';
+      const prog = (k - (tr.period - travel)) * SP;
+      const front = tr.dir > 0 ? tr.x1 - 40 + prog : tr.x2 + 40 - prog;
+      const back = front - tr.dir * LEN;
+      tr.lamp.setAlpha(0);
+      const xa = Math.max(tr.x1 - 30, Math.min(front, back)), xb = Math.min(tr.x2 + 30, Math.max(front, back));
+      if (xb > xa) {
+        const g = tr.g, top = tr.y - 74;
+        g.fillStyle(0x1c2028, 1); g.fillRect(xa, top, xb - xa, 70);
+        g.fillStyle(0x8a1a1a, 1); g.fillRect(xa, top + 46, xb - xa, 6);
+        for (let x = back; Math.abs(x - front) > 30; x += tr.dir * 34) { if (x > xa && x < xb - 20) { g.fillStyle(0xffe6a8, 0.85); g.fillRect(x, top + 12, 20, 18); } }
+        g.fillStyle(0xffffff, 1); if (front > xa && front < xb + 1) g.fillCircle(front - tr.dir * 6, top + 52, 4);
+      }
+      if (near && Math.random() < 0.25) this.cameras.main.shake(60, 0.003);
+      if (!tr.rumble && near) { tr.rumble = true; SFX.rumble(); this.time.delayedCall(travel * 1000, () => { tr.rumble = false; }); }
+      const f = this.feet(p);
+      if (!st.dead && st.invul <= 0 && !Dev.is('god') && f > tr.y - 30 && p.x > xa && p.x < xb) {
+        this.hurt(tr.dir, 'hp'); this.player.body.setVelocity(tr.dir * 260, -330);
+      }
+    });
+  }
+
+  // ---------------- nestanci struje (robna kuća) ----------------
+  updateBlackout(dt) {
+    const B = this.L.blackout; if (!B) return;
+    const t = this.time.now / 1000, k = (t + (B.ph || 0)) % B.period;
+    const was = this.blackout;
+    this.blackout = k > B.period - B.dur;
+    const flick = !this.blackout && k > B.period - B.dur - 0.8 && Math.sin(t * 40) > 0.3;
+    this.bossDark = this.blackout || flick;
+    if (this.blackout && !was) { SFX.lightsOut(); Buzz(60); }
+    if (!this.blackout && was) SFX.click();
+  }
+
+  // ---------------- divovske škare ----------------
+  spawnSkare(o) {
+    const g = this.add.graphics().setDepth(16);
+    this.skare.push({ x: o.x, y: o.y - 18, g, ph: o.ph || 0, period: o.period || 2.2, open: 1, side: o.side || 1 });
+  }
+
+  updateSkare(dt) {
+    const t = this.time.now / 1000, p = this.player, st = this.st;
+    this.skare.forEach(s => {
+      const k = (t + s.ph) % s.period;
+      let open;
+      if (k < s.period - 0.9) open = 1;
+      else if (k < s.period - 0.75) open = 1 - (k - (s.period - 0.9)) / 0.15;
+      else if (k < s.period - 0.4) { open = 0; if (!s.snapped) { s.snapped = true; if (Math.abs(p.x - s.x) < 300) SFX.snip(0.35); } }
+      else { open = (k - (s.period - 0.4)) / 0.4; s.snapped = false; }
+      const shake = k > s.period - 1.3 && k < s.period - 0.9 ? Math.sin(t * 60) * 1.2 : 0;
+      s.open = open;
+      const g = s.g; g.clear();
+      const L = 46, a = 0.05 + open * 0.75;
+      [1, -1].forEach(sg => {
+        const ang = sg * a;
+        const ex = s.x + Math.cos(ang) * L * s.side, ey = s.y + shake + Math.sin(ang) * L;
+        g.fillStyle(0xc8ccd4, 1); g.fillTriangle(s.x, s.y - 3 + shake, s.x, s.y + 3 + shake, ex, ey);
+        g.lineStyle(1, 0x2a2a30, 1); g.strokeTriangle(s.x, s.y - 3 + shake, s.x, s.y + 3 + shake, ex, ey);
+        const hx = s.x - Math.cos(ang) * 14 * s.side, hy = s.y + shake - Math.sin(ang) * 14;
+        g.lineStyle(3, 0x1a1a20, 1); g.strokeCircle(hx, hy, 5);
+      });
+      g.fillStyle(0x6a6a72, 1); g.fillCircle(s.x, s.y + shake, 3);
+      if (open < 0.15 && !st.dead && st.invul <= 0 && !Dev.is('god')) {
+        const rx = (p.x - s.x) * s.side;
+        if (rx > 4 && rx < L && Math.abs(p.y - 4 - s.y) < 16) this.hurt(-s.side, 'hp');
+      }
+    });
+  }
+
+  // ---------------- KROJAČ — borba ----------------
+  kbossCfg(k) {
+    return [
+      { tel: 0.55, drop: 620, drops: 1, stuck: 0.75, volleys: 2, gapW: 3, nsp: 380, dash: 380, dtel: 0.7, tired: 1.1, fans: 3, daze: 2.4, wait: 1.0 },
+      { tel: 0.42, drop: 680, drops: 2, stuck: 0.6, volleys: 3, gapW: 3, nsp: 430, dash: 430, dtel: 0.55, tired: 0.9, fans: 4, daze: 2.0, wait: 0.7 },
+      { tel: 0.32, drop: 740, drops: 3, stuck: 0.5, volleys: 3, gapW: 2, nsp: 480, dash: 480, dtel: 0.45, tired: 0.75, fans: 4, daze: 1.6, wait: 0.45 },
+    ][k.phase];
+  }
+
+  updateKBoss(k, dt) {
+    if (!k.alive) return;
+    const st = this.st, p = this.player, B = this.L.kboss, cam = this.cameras.main, C = this.kbossCfg(k), t = this.time.now / 1000;
+    const floor = B.floorY, dx = p.x - k.x;
+    k.hitCd = Math.max(0, (k.hitCd || 0) - dt);
+    const body = () => { if (st.dead) return false; const cy = this.kInv(k) ? k.y + 50 : k.y - 50; return Math.abs(p.x - k.x) < 18 && Math.abs(p.y - cy) < 50; };
+    const toCeil = () => { k.state = 'climb'; };
+    const pick = () => {
+      const pool = [['drop', 'rain', 'dash', 'hang', 'drop'], ['drop', 'rain', 'dash', 'hang', 'hang'], ['drop', 'rain', 'dash', 'hang', 'drop', 'rain']][k.phase].filter(a => a !== k.last);
+      const a = pool[(Math.random() * pool.length) | 0]; k.last = a;
+      if (a === 'drop') { k.state = 'aimB'; k.t = C.tel + 0.25; k.dropsLeft = C.drops; SFX.snip(0.35); }
+      if (a === 'rain') { k.state = 'rain'; k.vol = C.volleys; k.t = 0.3; k.glints = null; }
+      if (a === 'dash') { k.state = 'toFloor'; k.side = p.x > (B.x1 + B.x2) / 2 ? -1 : 1; k.x = k.side < 0 ? B.x1 + 26 : B.x2 - 26; k.y = k.cy; }
+      if (a === 'hang') { k.state = 'toHang'; k.hx = B.hangs[(Math.random() * B.hangs.length) | 0]; }
+    };
+
+    switch (k.state) {
+      case 'idle':
+        k.dir = dx > 0 ? 1 : -1;
+        if (!st.dead && p.x > B.trigger) {
+          const seen = this.registry.get('kIntro'); this.registry.set('kIntro', true);
+          k.state = 'intro'; k.t = seen ? 1.6 : 3.2;
+          st.lock = k.t; p.body.setVelocityX(0); st.maxHp = 5; st.hp = 5;
+          cam.stopFollow(); cam.pan(k.x, k.y + 70, seen ? 500 : 900, 'Sine.easeInOut');
+          SFX.snip(0.4); SFX.sting();
+        }
+        break;
+      case 'intro':
+        k.t -= dt;
+        if (k.t < 1.2 && !k.i1) { k.i1 = true; SFX.screech(); cam.shake(600, 0.007); Buzz([150, 60, 250]); this.ui.bossBar(k.hp, k.maxHp, 'KROJAČ'); }
+        if (k.t <= 0) {
+          this.arena = { w: B.x2 - B.x1, h: floor - B.top + 30, cx: (B.x1 + B.x2) / 2, cy: (B.top + floor) / 2 + 10 };
+          this.layout(); cam.pan(this.arena.cx, this.arena.cy, 500, 'Sine.easeInOut', true);
+          k.state = 'ceil'; k.t = 0.8;
+        }
+        break;
+      case 'ceil': {
+        k.t -= dt;
+        const tx = Phaser.Math.Clamp(p.x, B.x1 + 20, B.x2 - 20), d = tx - k.x;
+        k.x += Math.sign(d) * Math.min(Math.abs(d), 150 * dt); k.dir = Math.sign(d) || k.dir;
+        if (k.t <= 0 && !st.dead) pick();
+        break;
+      }
+      // --- spuštanje na koncu ravno odozgo ---
+      case 'aimB':
+        k.t -= dt;
+        if (k.t > 0.2) { const tx = Phaser.Math.Clamp(p.x + p.body.velocity.x * 0.2, B.x1 + 20, B.x2 - 20); k.x += Math.sign(tx - k.x) * Math.min(Math.abs(tx - k.x), 320 * dt); }
+        k.gy = floor;
+        if (k.t <= 0) { k.state = 'dropB'; SFX.screech(); }
+        break;
+      case 'dropB':
+        k.y += C.drop * dt;
+        if (body()) this.bossHurt(Math.sign(p.x - k.x) || 1);
+        if (k.y + 96 >= floor) { k.y = floor; k.state = 'stuckB'; k.t = C.stuck; k.dropsLeft--; SFX.stomp(); cam.shake(160, 0.006); this.dust.emitParticleAt(k.x, floor, 8); }
+        break;
+      case 'stuckB':
+        k.t -= dt;
+        if (k.t <= 0) { k.state = k.dropsLeft > 0 ? 'reup' : 'climb'; }
+        break;
+      case 'reup':
+        k.y -= 520 * dt;
+        if (k.y - 100 <= k.cy) { k.y = k.cy; k.state = 'aimB'; k.t = C.tel; SFX.snip(0.3); }
+        break;
+      case 'climb':
+        k.y -= 240 * dt; k.ang = 0;
+        if (k.y - 100 <= k.cy) { k.y = k.cy; k.state = 'ceil'; k.t = C.wait; }
+        break;
+      // --- kiša igala sa stropa (s jednim prolazom) ---
+      case 'rain':
+        k.t -= dt;
+        if (!k.glints && k.t <= 0) {
+          const n = Math.floor((B.x2 - B.x1 - 40) / 34);
+          const gap = 1 + ((Math.random() * (n - C.gapW - 1)) | 0);
+          k.glints = [];
+          for (let i = 0; i < n; i++) if (i < gap || i >= gap + C.gapW) k.glints.push(B.x1 + 20 + i * 34 + 17);
+          k.t = 0.7; SFX.snip(0.2);
+        } else if (k.glints && k.t <= 0) {
+          k.glints.forEach(x => this.spawnFeather(x, B.ceilY + 6, Math.PI / 2, C.nsp, 'igla_mala', 0xd8e8ff));
+          SFX.whirr(); k.glints = null; k.vol--; k.t = 0.75;
+          if (k.vol <= 0) { k.state = 'ceil'; k.t = C.wait + 0.6; }
+        }
+        if (k.glints) { const g = this.kThreadG; k.glints.forEach(x => { g.fillStyle(0xe8f0ff, 0.5 + Math.sin(t * 40) * 0.4); g.fillTriangle(x - 3, B.ceilY, x + 3, B.ceilY, x, B.ceilY + 10); }); }
+        break;
+      // --- juriš po podu sa škarama ---
+      case 'toFloor':
+        k.y += 520 * dt;
+        if (k.y + 96 >= floor) { k.y = floor; k.state = 'dashTel'; k.t = C.dtel; k.dir = -k.side; SFX.screech(); }
+        break;
+      case 'dashTel':
+        k.t -= dt; k.dir = k.side < 0 ? 1 : -1;
+        if (Math.floor(t * 12) !== Math.floor((t - dt) * 12)) SFX.snip(0.12);
+        if (k.t <= 0) k.state = 'dash';
+        break;
+      case 'dash':
+        k.x += k.dir * C.dash * dt;
+        if (body()) this.bossHurt(k.dir);
+        if (Math.floor(t * 8) !== Math.floor((t - dt) * 8)) SFX.snip(0.2);
+        if (k.x < B.x1 + 22 || k.x > B.x2 - 22) { k.x = Phaser.Math.Clamp(k.x, B.x1 + 22, B.x2 - 22); k.state = 'tired'; k.t = C.tired; }
+        break;
+      case 'tired':
+        k.t -= dt;
+        if (k.t <= 0) toCeil();
+        break;
+      // --- visi na koncu i baca igle; konac se može presjeći ---
+      case 'toHang': {
+        const d = k.hx - k.x;
+        k.x += Math.sign(d) * Math.min(Math.abs(d), 260 * dt);
+        if (Math.abs(d) < 2) { k.y += 300 * dt; if (k.y >= floor - 112) { k.y = floor - 112; k.state = 'hang'; k.vol = C.fans; k.t = 0.7; } }
+        break;
+      }
+      case 'hang':
+        k.t -= dt; k.dir = dx > 0 ? 1 : -1;
+        if (this.slashRect && this.slashRect.x < k.x + 2 && this.slashRect.right > k.x - 2 && this.slashRect.y < k.y && this.slashRect.bottom > k.cy) {
+          k.state = 'fall'; k.vy = 0; SFX.snip(0.5); SFX.screech(); cam.flash(100, 255, 255, 255); this.ui.toast('Konac je pukao!', 1200);
+          break;
+        }
+        if (k.t <= 0) {
+          const ox = k.x, oy = k.y + 70, base = Math.atan2((p.y - 4) - oy, p.x - ox);
+          for (let i = 0; i < 3; i++) this.spawnFeather(ox, oy, base + (i - 1) * 0.2, 300 + k.phase * 40, 'igla_mala', 0xd8e8ff);
+          SFX.snip(0.25); k.vol--; k.t = 0.8;
+          if (k.vol <= 0) k.state = 'climb2';
+        }
+        break;
+      case 'climb2':
+        k.y -= 220 * dt;
+        if (k.y <= k.cy) { k.y = k.cy; k.state = 'ceil'; k.t = C.wait; }
+        break;
+      case 'fall':
+        k.vy += 1000 * dt; k.y += k.vy * dt;
+        if (k.y + 100 >= floor) { k.y = floor; k.state = 'dazed'; k.t = C.daze; k.ang = 80 * k.dir; SFX.stomp(); SFX.crumble(); cam.shake(220, 0.007); }
+        break;
+      case 'dazed':
+        k.t -= dt;
+        if (k.t <= 0) { k.ang = 0; SFX.screech(); toCeil(); }
+        break;
+      case 'enrage':
+        k.t -= dt;
+        if (!k.e1) {
+          k.e1 = true; SFX.screech(); SFX.scream(); cam.shake(900, 0.01); Buzz([200, 80, 300]);
+          if (k.phase === 1) (B.lutke || []).forEach(o => this.spawnLutka(o));
+          if (k.phase === 2) this.kDarkT = 0;
+        }
+        if (k.t <= 0) { k.e1 = false; k.ang = 0; toCeil(); }
+        break;
+      case 'dying':
+        k.t -= dt; k.ang = 80 * k.dir;
+        k.s.setAlpha(Math.max(0, k.t / 2.6));
+        if (Math.random() < 0.3) this.burst.emitParticleAt(k.x + (Math.random() - 0.5) * 30, k.y - 20, 2);
+        if (k.t <= 0) {
+          k.alive = false; k.s.destroy(); k.eyes.destroy(); this.bossDark = false; this.kDarkT = null;
+          this.lutke.forEach(l => { this.tweens.add({ targets: l.s, alpha: 0, duration: 800 }); l.minX = l.maxX = l.x; });
+          this.arena = null; this.layout(); cam.startFollow(p, true, 0.12, 0.12); cam.setFollowOffset(0, 18);
+          this.kbossDefeated(); return;
+        }
+        break;
+    }
+    // faza 3: mrak u naletima
+    if (this.kDarkT !== null && this.kDarkT !== undefined) { this.kDarkT += dt; const q = this.kDarkT % 6; this.bossDark = q > 4 && k.state !== 'dying'; if (q > 4 && q - dt <= 4) SFX.lightsOut(); }
+    this.updateFeathers(dt);
+    this.drawKBoss(k, t);
+  }
+
+  drawKBoss(k, t) {
+    const inv = ['idle', 'intro', 'ceil', 'aimB', 'dropB', 'rain', 'toHang', 'hang', 'climb2'].includes(k.state) || (k.state === 'enrage' && k.y <= k.cy + 1);
+    let fr;
+    if (k.state === 'dropB' || k.state === 'fall') fr = 'drop';
+    else if (k.state === 'dash' || k.state === 'climb' || k.state === 'reup' || k.state === 'ceil' || k.state === 'toHang' || k.state === 'climb2') fr = 'crawl' + (Math.floor(t * (k.state === 'dash' ? 16 : 8)) % 4);
+    else fr = 'stand';
+    const ang = k.ang || 0;
+    k.inv = inv;
+    k.s.setFrame(fr).setFlipX(k.dir < 0).setFlipY(inv).setOrigin(0.5, inv ? 0 : 1).setAngle(inv ? 0 : ang)
+      .setPosition(k.x + ((k.state === 'aimB' || k.state === 'dashTel') ? Math.sin(t * 50) : 0), k.y);
+    const hy = inv ? k.y + 68 : k.y - 68;
+    k.eyes.setVisible(k.state !== 'dazed' && k.state !== 'dying').setPosition(k.x + k.dir * 2, hy).setFlipY(inv).setAlpha(k.state === 'aimB' || k.state === 'dashTel' ? 0.6 + Math.random() * 0.4 : 0.9);
+    const g = this.kThreadG;
+    if (['aimB', 'dropB', 'stuckB', 'reup', 'climb', 'toFloor', 'hang', 'toHang', 'climb2', 'tired', 'dazed', 'dashTel', 'dash'].includes(k.state) && k.state !== 'dazed' && k.state !== 'dash' && k.state !== 'dashTel' && k.state !== 'tired') {
+      g.lineStyle(k.state === 'hang' ? 2 : 1, 0xe8e0c8, k.state === 'hang' ? 0.95 : 0.7);
+      g.beginPath(); g.moveTo(k.x, k.cy); g.lineTo(k.x, k.state === 'aimB' ? k.gy || this.L.kboss.floorY : inv ? k.y : k.y - 100); g.strokePath();
+    }
+  }
+
+  hitKBoss(k) {
+    if (k.hitCd > 0 || !['stuckB', 'tired', 'dazed'].includes(k.state)) return;
+    k.hitCd = 0.3; k.hp--;
+    this.ui.bossBar(k.hp, k.maxHp, 'KROJAČ');
+    SFX.bugHit(); Buzz(40); this.cameras.main.shake(120, 0.005);
+    this.burst.emitParticleAt(k.x, k.y - 40, 8);
+    k.s.setTintFill(0xffffff); this.time.delayedCall(70, () => k.s.active && k.s.clearTint());
+    if (k.hp <= 0) { k.state = 'dying'; k.t = 2.6; SFX.scream(); this.feathers.forEach(f => { f.s.destroy(); f.glow.destroy(); }); this.feathers = []; this.ui.toast('Krojač pada…', 2200); return; }
+    const ph = k.hp > 24 ? 0 : k.hp > 12 ? 1 : 2;
+    if (ph !== k.phase) {
+      k.phase = ph; k.state = 'enrage'; k.t = 1.4; k.ang = 0;
+      this.ui.toast(ph === 1 ? 'Krojač zove svoje lutke!' : 'Krojač gasi svjetla…', 1800);
+    }
+  }
+
+  kbossDefeated() {
+    const o = this.pendingExit;
+    this.ui.bossBar(0);
+    SFX.win(); Buzz([80, 60, 80, 60, 200]);
+    this.cameras.main.flash(600, 255, 240, 200);
+    this.time.delayedCall(1200, () => this.ui.toast('Krojač je pao. Konci su se pokidali.', 3200));
+    if (o) {
+      const s = this.add.image(o.x, o.y, this.L.exitTex || 'izlaz').setOrigin(0.5, 1).setScale(1 / RES).setDepth(4).setAlpha(0);
       this.tweens.add({ targets: s, alpha: 1, duration: 1500, delay: 800 });
       this.exit = { ...o, s };
     }
@@ -1260,7 +1574,7 @@ class GameScene extends Phaser.Scene {
     this.lutke.forEach(l => {
       const dx = p.x - l.x, dy = this.feet(p) - l.y;
       const near = Math.abs(dx) < 420 && Math.abs(dy) < 120;
-      const watched = st.face === Math.sign(l.x - p.x) && Math.abs(dx) < 380;
+      const watched = st.face === Math.sign(l.x - p.x) && Math.abs(dx) < 380 && (!this.bossDark || (st.flash && st.battery > 0 && Math.abs(dx) < 230));
       let target = null;
       if (st.hidden || st.dead || !near) target = Math.abs(l.x - l.hx) > 4 ? l.hx : null;
       else if (!watched && p.x > l.minX - 40 && p.x < l.maxX + 40) target = p.x;
@@ -1281,7 +1595,10 @@ class GameScene extends Phaser.Scene {
         if (Math.abs(dx) < 200) SFX.sting();
       }
       l.s.setPosition(l.x, l.y).setFlipX(l.dir < 0);
-      if (!st.dead && !st.hidden && !Dev.is('god') && Math.abs(dx) < 13 && dy > -30 && dy < 8) this.die('monster', 'lutka');
+      if (!st.dead && !st.hidden && !Dev.is('god') && Math.abs(dx) < 13 && dy > -30 && dy < 8) {
+        if (this.L.kboss) { this.bossHurt(Math.sign(dx) || 1); l.x -= (Math.sign(dx) || 1) * 50; l.x = Phaser.Math.Clamp(l.x, l.minX, l.maxX); }
+        else this.die('monster', 'lutka');
+      }
     });
   }
 
@@ -1306,17 +1623,17 @@ class GameScene extends Phaser.Scene {
     return true;
   }
 
-  kInv(k) { return k.state === 'cameo' || k.state === 'leave' || k.state === 'patrol' || k.state === 'listen' || k.state === 'hunt' || k.state === 'aim' || k.state === 'drop'; }
+  kInv(k) { if (k.boss) return !!k.inv; return k.state === 'cameo' || k.state === 'leave' || k.state === 'patrol' || k.state === 'listen' || k.state === 'hunt' || k.state === 'aim' || k.state === 'drop'; }
 
   kAlarm(k, x) {
-    if (!k.alive || k.cameo || (k.state !== 'patrol' && k.state !== 'listen')) return;
+    if (!k.alive || k.cameo || k.boss || (k.state !== 'patrol' && k.state !== 'listen')) return;
     if (x < k.x1 - 80 || x > k.x2 + 80) return;
     k.state = 'hunt'; k.tx = Phaser.Math.Clamp(x, k.x1, k.x2); k.t = 4;
     SFX.snip(0.3); SFX.sting();
   }
 
   kHear(k, x, y, r) {
-    if (!k.alive || k.cameo || r <= 0 || this.st.hidden) return;
+    if (!k.alive || k.cameo || k.boss || r <= 0 || this.st.hidden) return;
     if (Math.hypot(x - k.x, y - (k.y + 50)) < r && this.kLOS(k)) this.kAlarm(k, x);
   }
 
@@ -1505,7 +1822,8 @@ class GameScene extends Phaser.Scene {
     this.updateIcicles(dt);
     this.wisps.forEach(w => this.updateWisp(w, dt));
     this.updateThreads(dt); this.updateNeedles(dt); this.updateLutke(dt);
-    this.kThreadG.clear(); this.krojaci.forEach(k => this.updateKrojac(k, dt));
+    this.kThreadG.clear(); this.krojaci.forEach(k => k.boss ? this.updateKBoss(k, dt) : this.updateKrojac(k, dt));
+    this.updateTrains(dt); this.updateBlackout(dt); this.updateSkare(dt);
     this.huks.forEach(h => h.boss ? this.updateBoss(h, dt) : this.updateHuk(h, dt));
     this.updateWind(dt);
     this.updateWall(dt);
@@ -1690,6 +2008,7 @@ class GameScene extends Phaser.Scene {
       this.webs.forEach(w => { if (!w.cut && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(w.x * TILE + 2, w.y * TILE + 2, TILE - 4, TILE - 4))) this.cutWeb(w); });
       this.wisps.forEach(w => { if (w.state === 'live' && hit.contains(w.x, w.y)) this.popWisp(w, false); });
       this.konci.forEach(th => { if (!th.cut && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(th.x - 22, th.y - 12, 44, 10))) { this.cutThread(th); this.taken.add(th.id); } });
+      this.krojaci.forEach(k => { if (k.boss && Phaser.Geom.Intersects.RectangleToRectangle(hit, k.state === 'dazed' ? new Phaser.Geom.Rectangle(k.x - 40, k.y - 34, 80, 34) : new Phaser.Geom.Rectangle(k.x - 20, k.y - 100, 40, 100))) this.hitKBoss(k); });
       this.huks.forEach(h => { if (h.boss && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(h.x - 22, h.y - (h.state === 'dazed' ? 30 : 56), 44, h.state === 'dazed' ? 32 : 58))) this.hitBoss(h); });
       this.noise(p.x, p.y, 170);
     }
@@ -1873,14 +2192,14 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  hurt(dir, reason = 'hp') {
+  hurt(dir, reason = 'hp', skin) {
     if (Dev.is('god')) return;
     const st = this.st;
     st.hp--; st.invul = 1.3; st.lock = 0.25;
     this.player.body.setVelocity(dir * 170, -210);
     SFX.hurt(); Buzz(90);
     this.cameras.main.shake(150, 0.006);
-    if (st.hp <= 0) this.die(reason);
+    if (st.hp <= 0) this.die(reason, skin);
   }
 
   die(reason, skin) {
@@ -1975,7 +2294,9 @@ class GameScene extends Phaser.Scene {
         } else if (endsWorld) {
           Progress.worldDone(world);
           Save.store(next < Level.count ? Save.fresh(next) : { ...Save.fresh(next - 1), done: true });
-          this.scene.stop('UI'); world === 0 ? this.scene.start('Transition', { world }) : this.scene.start('Soon', { world, done: true });
+          this.scene.stop('UI');
+          if (next >= Level.count) { Progress.finish(); this.scene.start('End'); }
+          else world === 0 ? this.scene.start('Transition', { world }) : this.scene.start('Soon', { world, done: true });
         }
         else { Save.store(Save.fresh(next)); this.scene.restart(); }
       });
@@ -2074,7 +2395,7 @@ class GameScene extends Phaser.Scene {
     c.globalCompositeOperation = 'source-over';
     c.globalAlpha = 1;
     c.clearRect(0, 0, cw, ch);
-    c.fillStyle = this.T.dark + (this.bossDark ? 0.96 : this.lightsOff ? Math.min(0.97, this.T.darkA + 0.02) : this.T.darkA) + ')';
+    c.fillStyle = this.T.dark + (this.bossDark ? 0.96 : this.arena ? this.T.darkA - 0.2 : this.lightsOff ? Math.min(0.97, this.T.darkA + 0.02) : this.T.darkA) + ')';
     c.fillRect(0, 0, cw, ch);
     c.globalCompositeOperation = 'destination-out';
     const L = (x, y, r, a = 1) => {
@@ -2104,7 +2425,7 @@ class GameScene extends Phaser.Scene {
     const tt = this.time.now / 1000;
     this.lamps.forEach(l => { if (l.broken && Math.sin(tt * 13 + l.flick) * Math.sin(tt * 3.1 + l.flick) > 0.3) { l.g.setAlpha(0.05); return; } l.g.setAlpha(0.55); L(l.x, l.y - 60, 70, 0.85); L(l.x, l.y - 18, 46, 0.6); });
     this.lutke.forEach(l => L(l.x, l.y - 24, 22, 0.22));
-    this.krojaci.forEach(k => { if (k.alive) L(k.x, k.y + (this.kInv(k) ? 50 : -50), k.state === 'cameo' ? 120 : 48, k.state === 'cameo' ? 0.8 : 0.3); });
+    this.krojaci.forEach(k => { if (k.alive) L(k.x, k.y + (this.kInv(k) ? 50 : -50), k.state === 'cameo' ? 120 : k.boss ? 90 : 48, k.state === 'cameo' ? 0.8 : k.boss ? 0.55 : 0.3); });
     if (this.forest) this.items.forEach(it => { if (!it.done && it.type === 'battery') L(it.x, it.baseY, 22, 0.55); });
     this.wisps.forEach(w => { if (w.state === 'live') L(w.x, w.y, 34, 0.8); });
     this.huks.forEach(h => { if (h.alive) L(h.x, h.y - 38 * h.hs, h.spot ? 110 : 46, h.spot ? 0.8 : 0.32); });
@@ -2125,6 +2446,9 @@ class GameScene extends Phaser.Scene {
       if (this.T.amb === 'crickets') { SFX.cricket(pan); if (Math.random() < 0.08) SFX.hoot(); }
       else if (this.T.amb === 'frogs') { Math.random() < 0.6 ? SFX.frog(pan) : SFX.cricket(pan); }
       else if (this.T.amb === 'city') { Math.random() < 0.3 ? SFX.distant() : Math.random() < 0.5 ? SFX.drip(pan) : SFX.creak(); }
+      else if (this.T.amb === 'metro') { Math.random() < 0.3 ? SFX.rumble() : Math.random() < 0.5 ? SFX.clank() : SFX.drip(pan); }
+      else if (this.T.amb === 'store') { Math.random() < 0.35 ? SFX.musicbox() : SFX.creak(); }
+      else if (this.T.amb === 'clock') { Math.random() < 0.6 ? SFX.tick() : SFX.bell(); }
       else if (this.T.amb === 'factory') { Math.random() < 0.6 ? SFX.clank() : SFX.drip(pan); }
       else if (this.T.amb === 'creak') { Math.random() < 0.5 ? SFX.chitter(0.05, pan) : SFX.creak(); }
       else if (this.T.id === 'kosturnica' && Math.random() < 0.25) SFX.bell();

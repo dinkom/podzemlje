@@ -1,11 +1,11 @@
 // Podzemlje — service worker
 // Mreža prvo: pri svakom otvaranju igra uzme najnovije datoteke s GitHub Pagesa.
 // Spremljena kopija služi samo kad nema interneta (ili mreža ne odgovori u 4 s).
-const VERSION = 'podzemlje-v15';
+const VERSION = 'podzemlje-v17';
 const FILES = [
   './', './index.html', './manifest.webmanifest',
   './lib/phaser.min.js',
-  './js/sfx.js', './js/art.js', './js/tiles.js', './js/level.js', './js/suma.js', './js/suma2.js', './js/grad.js', './js/game.js', './js/ui.js', './js/main.js',
+  './js/sfx.js', './js/art.js', './js/tiles.js', './js/level.js', './js/suma.js', './js/suma2.js', './js/grad.js', './js/grad2.js', './js/game.js', './js/ui.js', './js/main.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
 ];
 

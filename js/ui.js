@@ -250,14 +250,14 @@ class UIScene extends Phaser.Scene {
   }
 
   // Hukovo zdravlje u borbi
-  bossBar(hp, max = 30) {
+  bossBar(hp, max = 30, name = 'HUK') {
     const w = this.scale.width, u = this.scale.height / 360;
     if (!this.bossT) {
       this.bossT = this.add.text(0, 0, 'HUK', { fontFamily: FONT, fontStyle: 'bold', color: '#ffd23a', stroke: '#000', strokeThickness: 5 }).setOrigin(0.5).setDepth(50);
       this.bossG = this.add.graphics().setDepth(50);
     }
     const bw = Math.min(420 * u, w * 0.5), bx = w / 2 - bw / 2, by = 34 * u;
-    this.bossT.setPosition(w / 2, 20 * u).setFontSize(Math.round(16 * u)).setVisible(hp > 0);
+    this.bossT.setPosition(w / 2, 20 * u).setFontSize(Math.round(16 * u)).setVisible(hp > 0).setText(name);
     const g = this.bossG; g.clear();
     if (hp <= 0) return;
     g.fillStyle(0x000000, 0.7); g.fillRect(bx - 3 * u, by - 3 * u, bw + 6 * u, 12 * u);

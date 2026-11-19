@@ -160,6 +160,9 @@ const SFX = (() => {
     klak(vol = 0.15, pan = 0) { tone({ type: 'square', f: 600 + Math.random() * 200, f2: 300, d: 0.03, vol: vol * 0.5, pan }); noise({ d: 0.04, vol, type: 'bandpass', f: 1800, q: 3, pan }); },
     distant() { const f = 700 + Math.random() * 200; tone({ type: 'sine', f, f2: f * 1.3, a: 0.4, d: 1.4, vol: 0.02 }); tone({ type: 'sine', f: f * 1.3, f2: f, a: 0.3, d: 1.4, vol: 0.02, delay: 1.3 }); },
     clank() { tone({ type: 'triangle', f: 180 + Math.random() * 80, f2: 120, d: 0.5, vol: 0.06 }); noise({ d: 0.12, vol: 0.06, type: 'bandpass', f: 2500, q: 4 }); },
+    horn() { tone({ type: 'sawtooth', f: 311, a: 0.05, d: 1.1, vol: 0.08 }); tone({ type: 'sawtooth', f: 370, a: 0.05, d: 1.1, vol: 0.07 }); tone({ type: 'sawtooth', f: 311, a: 0.05, d: 0.6, vol: 0.06, delay: 1.2 }); },
+    musicbox() { const notes = [1046, 1174, 1318, 1046, 988, 880]; const k = (Math.random() * 3) | 0; for (let i = 0; i < 4; i++) tone({ type: 'sine', f: notes[(k + i) % notes.length] * (i === 3 ? 0.94 : 1), a: 0.005, d: 0.6, vol: 0.03, delay: i * 0.32 }); },
+    tick() { for (let i = 0; i < 2; i++) tone({ type: 'square', f: i ? 1500 : 1800, d: 0.02, vol: 0.05, delay: i * 0.5 }); },
     gust() { noise({ a: 0.25, d: 1.4, vol: 0.22, type: 'bandpass', f: 400, f2: 1400, q: 0.7 }); noise({ a: 0.4, d: 1.2, vol: 0.12, type: 'highpass', f: 2500, delay: 0.1 }); },
     wispZap() { tone({ type: 'sine', f: 1600, f2: 120, a: 0.01, d: 0.7, vol: 0.18 }); tone({ type: 'triangle', f: 2400, f2: 300, d: 0.5, vol: 0.06, delay: 0.05 }); noise({ d: 0.5, vol: 0.12, type: 'bandpass', f: 3000, f2: 400, q: 2 }); },
     screech() {
