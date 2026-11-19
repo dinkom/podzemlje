@@ -215,7 +215,7 @@ class UIScene extends Phaser.Scene {
     this.devBadge.setVisible(Dev.on).setPosition(this.scale.width - 62 * u, 18 * u).setFontSize(Math.round(11 * u));
 
     // HUD — životi (male lampice duše)
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < (hud.maxHp || 3); i++) {
       const x = 28 * u + i * 26 * u, y = 28 * u;
       const full = i < hud.hp;
       g.fillStyle(full ? 0xbff2ff : 0x2a3340, full ? 0.95 : 0.8);
@@ -250,12 +250,20 @@ class UIScene extends Phaser.Scene {
   }
 
   // Hukovo zdravlje u borbi
-  bossBar(hp, max = 3) {
+  bossBar(hp, max = 30) {
     const w = this.scale.width, u = this.scale.height / 360;
-    if (!this.bossT) this.bossT = this.add.text(0, 0, '', { fontFamily: FONT, fontStyle: 'bold', color: '#ffd23a', stroke: '#000', strokeThickness: 5 }).setOrigin(0.5).setDepth(50);
-    this.bossT.setPosition(w / 2, 22 * u).setFontSize(Math.round(18 * u)).setVisible(hp > 0);
-    this.bossT.setText('HUK  ' + '◆'.repeat(hp) + '◇'.repeat(Math.max(0, max - hp)));
-    this.tweens.add({ targets: this.bossT, scale: { from: 1.35, to: 1 }, duration: 300 });
+    if (!this.bossT) {
+      this.bossT = this.add.text(0, 0, 'HUK', { fontFamily: FONT, fontStyle: 'bold', color: '#ffd23a', stroke: '#000', strokeThickness: 5 }).setOrigin(0.5).setDepth(50);
+      this.bossG = this.add.graphics().setDepth(50);
+    }
+    const bw = Math.min(420 * u, w * 0.5), bx = w / 2 - bw / 2, by = 34 * u;
+    this.bossT.setPosition(w / 2, 20 * u).setFontSize(Math.round(16 * u)).setVisible(hp > 0);
+    const g = this.bossG; g.clear();
+    if (hp <= 0) return;
+    g.fillStyle(0x000000, 0.7); g.fillRect(bx - 3 * u, by - 3 * u, bw + 6 * u, 12 * u);
+    g.fillStyle(0x5a1010, 1); g.fillRect(bx, by, bw, 6 * u);
+    g.fillStyle(0xffd23a, 1); g.fillRect(bx, by, bw * hp / max, 6 * u);
+    g.fillStyle(0x000000, 1); [1 / 3, 2 / 3].forEach(k => g.fillRect(bx + bw * k - 1 * u, by, 2 * u, 6 * u));
   }
 
   toast(msg, ms = 1600) {

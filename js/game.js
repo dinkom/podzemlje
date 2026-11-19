@@ -88,6 +88,7 @@ class GameScene extends Phaser.Scene {
     this.items = []; this.cabinets = []; this.notes = []; this.checkpoints = []; this.crawlers = []; this.bats = []; this.spiders = []; this.icicles = [];
     this.wisps = []; this.huks = []; this.forest = !!T.forest;
     this.exit = null; this.pendingExit = null; this.wall = null;
+    this.feathers = []; this.shocks = []; this.bossDark = false; this.slashRect = null; this.arena = null;
     this.lamps = []; this.konci = []; this.needles = []; this.lutke = []; this.krojaci = []; this.chaseK = null;
     this.threads = this.add.graphics().setDepth(12);
     for (const o of L.objects) {
@@ -160,10 +161,11 @@ class GameScene extends Phaser.Scene {
     }));
     (L.huks || []).forEach(h => this.spawnHuk(h));
     this.threadG = this.add.graphics().setDepth(13);
+    this.shockG = this.add.graphics().setDepth(16);
     this.kThreadG = this.add.graphics().setDepth(13);
     (L.krojaci || []).forEach(k => this.spawnKrojac(k));
     this.drawCables();
-    if (L.boss) { this.spawnHuk({ id: 'BOSS', perches: L.boss.perches, x1: L.boss.x1, x2: L.boss.x2 }); const bh = this.huks[this.huks.length - 1]; bh.boss = true; bh.state = 'idle'; bh.hp = 3; bh.phase = 0; }
+    if (L.boss) { this.spawnHuk({ id: 'BOSS', perches: L.boss.perches, x1: L.boss.x1, x2: L.boss.x2 }); const bh = this.huks[this.huks.length - 1]; bh.boss = true; bh.state = 'idle'; bh.hp = bh.maxHp = 30; bh.phase = 0; }
     this.buildWind();
 
     // junak
@@ -240,7 +242,8 @@ class GameScene extends Phaser.Scene {
   layout() {
     const w = this.scale.width, h = this.scale.height;
     const cam = this.cameras.main;
-    const zoom = Dev.is('zoom') ? Math.min(w / this.worldW, h / this.worldH) : h / VIEW_H;
+    let zoom = Dev.is('zoom') ? Math.min(w / this.worldW, h / this.worldH) : h / VIEW_H;
+    if (this.arena && !Dev.is('zoom')) zoom = Math.min(zoom, w / (this.arena.w + 40), h / (this.arena.h + 30));
     cam.setZoom(zoom);
     const vw = w / zoom, vh = h / zoom;
     this.vw = vw; this.vh = vh;
@@ -840,7 +843,9 @@ class GameScene extends Phaser.Scene {
     const t = this.time.now, hs = h.hs;
     let fr;
     const flying = h.state === 'swoop' || h.state === 'return' || h.state === 'leave';
-    if (h.state === 'telegraph' || h.state === 'blind' || h.state === 'hurt') fr = Math.floor(t / 70) % 2 ? 'fly0' : 'fly1';
+    if (h.state === 'dive') fr = 'dive';
+    else if (['telegraph', 'blind', 'hurt', 'feathers', 'sweepTel', 'enrage', 'toCenter', 'toEdge', 'sweep', 'shriek'].includes(h.state)) fr = Math.floor(t / 70) % 2 ? 'fly0' : 'fly1';
+    else if (h.state === 'stuck' || h.state === 'tired') fr = 'stand1';
     else if (h.state === 'stunned') fr = 'fly1';
     else if (h.state === 'dazed' || h.state === 'dying') fr = 'stand0';
     else if (h.state === 'swoop') fr = h.vy > 80 ? 'dive' : Math.floor(t / 110) % 2 ? 'fly0' : 'fly1';
@@ -914,116 +919,240 @@ class GameScene extends Phaser.Scene {
   }
 
   // ---------------- HUK — borba ----------------
+  // ---------------- HUK — borba (teška verzija) ----------------
+  // faze: 0 (30–21), 1 (20–11), 2 (10–1). Ranjiv: ošamućen (svjetiljka u lice tijekom obrušavanja),
+  // zaglavljen u tlu nakon promašenog obrušavanja, umoran nakon vriska.
+  bossCfg(h) {
+    return [
+      { dive: 380, tel: 0.7, wait: 1.0, dives: 1, waves: 3, fan: 3, fsp: 250, shocks: 1, daze: 2.4, stuck: 0.8, flashD: 160 },
+      { dive: 430, tel: 0.55, wait: 0.7, dives: 2, waves: 3, fan: 5, fsp: 290, shocks: 2, daze: 2.0, stuck: 0.6, flashD: 135 },
+      { dive: 480, tel: 0.42, wait: 0.45, dives: 3, waves: 4, fan: 5, fsp: 320, shocks: 3, daze: 1.6, stuck: 0.5, flashD: 115 },
+    ][h.phase];
+  }
+
+  bossHurt(dir) {
+    const st = this.st;
+    if (st.invul > 0 || st.dead || Dev.is('god')) return;
+    this.hurt(dir, 'huk');
+  }
+
   updateBoss(h, dt) {
     if (!h.alive) return;
-    const st = this.st, p = this.player, B = this.L.boss, cam = this.cameras.main;
+    const st = this.st, p = this.player, B = this.L.boss, cam = this.cameras.main, C = this.bossCfg(h);
     if (h.turnT > 0) { h.turnT -= dt; if (h.turnT <= 0.12 && h.head !== h.headTo) { h.head = h.headTo; h.headS.setFrame(h.head); } }
     h.hitCd = Math.max(0, (h.hitCd || 0) - dt);
-    const P = [{ sp: 270, tel: 0.8, wait: 2.2 }, { sp: 305, tel: 0.6, wait: 1.6 }, { sp: 335, tel: 0.45, wait: 1.1 }][h.phase];
-    const dx = p.x - h.x, d = Math.hypot(dx, (p.y - 4) - (h.y - 40 * h.hs));
-    const talons = () => { if (st.dead || Dev.is('god')) return false; const ry = p.y - (h.y - 20 * h.hs); return Math.abs(p.x - h.x) < 17 && ry > -28 && ry < 18; };
+    const dx = p.x - h.x, d = Math.hypot(dx, (p.y - 4) - (h.y - 30 * h.hs));
+    const body = () => { if (st.dead) return false; const ry = p.y - (h.y - 28 * h.hs); return Math.abs(p.x - h.x) < 18 && ry > -40 && ry < 16; };
+    const floor = B.floorY, cx = (B.x1 + B.x2) / 2;
     const toPerch = () => { h.state = 'return'; h.home = h.perches[(Math.random() * h.perches.length) | 0]; h.ang = 0; };
+    const flyTo = (x, y, sp) => { const ax = x - h.x, ay = y - h.y, ad = Math.hypot(ax, ay); if (ad < sp * dt + 2) { h.x = x; h.y = y; return true; } h.x += ax / ad * sp * dt; h.y += ay / ad * sp * dt; h.dir = ax > 0 ? 1 : ax < 0 ? -1 : h.dir; this.hukFlapSound(h, dt, d); return false; };
+    const pick = () => {
+      const pool = [['dive', 'dive', 'feathers', 'shriek'], ['dive', 'feathers', 'shriek', 'sweep', 'dive'], ['dive', 'feathers', 'shriek', 'sweep', 'dive', 'sweep']][h.phase].filter(a => a !== h.last);
+      const a = pool[(Math.random() * pool.length) | 0]; h.last = a;
+      if (a === 'dive') { h.state = 'telegraph'; h.t = C.tel; h.divesLeft = C.dives; SFX.hoot(); }
+      if (a === 'feathers') { h.state = 'feathers'; h.wave = C.waves; h.t = 0.6; SFX.hoot(); }
+      if (a === 'shriek') { h.state = 'toCenter'; }
+      if (a === 'sweep') { h.state = 'toEdge'; h.side = p.x > cx ? -1 : 1; }
+    };
 
     switch (h.state) {
       case 'idle':
         h.dir = dx > 0 ? 1 : -1;
-        if (!st.dead && p.x > B.trigger && p.y < B.floorY + 30) {
-          h.state = 'intro'; h.t = 3; h.spot = true;
-          st.lock = 3; p.body.setVelocityX(0);
-          cam.stopFollow(); cam.pan(h.x, h.y - 40, 900, 'Sine.easeInOut');
+        if (!st.dead && p.x > B.trigger && p.y < floor + 30) {
+          const seen = this.registry.get('hukIntro');
+          this.registry.set('hukIntro', true);
+          h.state = 'intro'; h.t = seen ? 1.6 : 3; h.spot = true;
+          st.lock = h.t; p.body.setVelocityX(0);
+          st.maxHp = 5; st.hp = 5;
+          cam.stopFollow(); cam.pan(h.x, h.y - 40, seen ? 500 : 900, 'Sine.easeInOut');
           SFX.hoot(); SFX.sting();
         }
         break;
       case 'intro':
         h.t -= dt;
-        if (h.t < 1.8 && !h.i1) { h.i1 = true; SFX.screech(); cam.shake(600, 0.007); Buzz([150, 60, 250]); this.ui.bossBar(h.hp); this.ui.toast('HUK', 1500); }
+        if (h.t < 1.2 && !h.i1) { h.i1 = true; SFX.screech(); cam.shake(600, 0.007); Buzz([150, 60, 250]); this.ui.bossBar(h.hp, h.maxHp); }
         if (h.t <= 0) {
-          cam.pan(p.x, p.y + 18, 600, 'Sine.easeInOut', true, (c, k) => { if (k === 1) { c.startFollow(p, true, 0.12, 0.12); c.setFollowOffset(0, 18); } });
-          h.state = 'perch'; h.t = 1.2; h.swoops = 0;
+          this.arena = { w: B.x2 - B.x1, h: floor - B.top + 30, cx: (B.x1 + B.x2) / 2, cy: (B.top + floor) / 2 + 10 };
+          this.layout();
+          cam.pan(this.arena.cx, this.arena.cy, 500, 'Sine.easeInOut', true);
+          h.state = 'perch'; h.t = 0.8;
         }
         break;
       case 'perch':
         h.t -= dt; h.dir = dx > 0 ? 1 : -1;
         if (h.head !== 'front' && h.turnT <= 0) this.hukTurnHead(h, 'front');
-        if (h.t <= 0 && !st.dead) { h.state = 'telegraph'; h.t = P.tel; SFX.hoot(); Buzz(40); }
+        if (h.t <= 0 && !st.dead) pick();
         break;
+
+      // --- obrušavanje: ravno, brzo, bez skretanja nakon polijetanja ---
       case 'telegraph':
-        h.t -= dt; h.tx = p.x; h.ty = p.y; h.dir = dx > 0 ? 1 : -1;
+        h.t -= dt; h.dir = dx > 0 ? 1 : -1;
+        if (h.t > 0.12) { h.tx = p.x + p.body.velocity.x * 0.25; h.ty = Math.min(p.y, floor - 6); }
         if (h.t <= 0) {
-          h.state = 'swoop'; h.t = 2.6; h.swoops = (h.swoops || 0) + 1;
-          const ax = h.tx - h.x, ay = (h.ty - 2) - (h.y - 14 * h.hs), ad = Math.hypot(ax, ay) || 1;
-          h.vx = ax / ad * P.sp; h.vy = ay / ad * P.sp; SFX.screech();
+          h.state = 'dive';
+          const ax = h.tx - h.x, ay = h.ty - (h.y - 14 * h.hs), ad = Math.hypot(ax, ay) || 1;
+          h.vx = ax / ad * C.dive; h.vy = Math.max(60, ay / ad * C.dive); SFX.screech();
         }
         break;
-      case 'swoop': {
-        h.t -= dt;
-        const lead = Math.min(0.4, d / P.sp); h.tx = p.x + p.body.velocity.x * lead; h.ty = p.y;
-        const ax = h.tx - h.x, ay = (h.ty - 2) - (h.y - 14 * h.hs);
-        const want = Math.atan2(ay, ax), cur = Math.atan2(h.vy, h.vx);
-        const turn = d < 170 ? 7 : 3.2;
-        const ang = cur + Phaser.Math.Clamp(Phaser.Math.Angle.Wrap(want - cur), -turn * dt, turn * dt);
-        h.vx = Math.cos(ang) * P.sp; h.vy = Math.sin(ang) * P.sp;
+      case 'dive': {
         h.x += h.vx * dt; h.y += h.vy * dt; h.dir = h.vx > 0 ? 1 : -1;
-        h.x = Phaser.Math.Clamp(h.x, B.x1, B.x2);
         this.hukFlapSound(h, dt, d);
-        if (st.flash && st.battery > 0 && d < 165 && (h.x - p.x) * st.face > -8) {
-          h.state = 'stunned'; h.vx = Math.sign(h.x - p.x || 1) * 60; h.vy = -140;
-          st.battery = Math.max(0, st.battery - 10);
+        if (st.flash && st.battery > 0 && d < C.flashD && (h.x - p.x) * st.face > -8) {
+          h.state = 'stunned'; h.vx = Math.sign(h.x - p.x || 1) * 60; h.vy = -160;
+          st.battery = Math.max(0, st.battery - 25);
           SFX.screech(); Buzz([40, 30, 40]); cam.flash(140, 255, 240, 180);
           break;
         }
-        if (talons()) { this.die('huk'); return; }
-        const gy = this.hukGroundY(h.x, h.y - 30, true);
-        if (gy !== null && h.y >= gy && h.vy > 0) {
-          h.y = gy; SFX.land();
-          if (h.phase >= 1 && h.swoops < 2) { h.state = 'telegraph'; h.t = 0.35; }
-          else toPerch();
-        } else if (h.t <= 0) toPerch();
+        if (body()) this.bossHurt(Math.sign(p.x - h.x) || 1);
+        if (h.x < B.x1 + 10 || h.x > B.x2 - 10) { h.x = Phaser.Math.Clamp(h.x, B.x1 + 10, B.x2 - 10); h.vx = 0; }
+        if (h.y >= floor) {
+          h.y = floor; h.divesLeft--; SFX.stomp(); cam.shake(140, 0.005); this.dust.emitParticleAt(h.x, floor, 8);
+          h.state = 'stuck'; h.t = C.stuck;
+        }
         break;
       }
+      case 'stuck':
+        h.t -= dt;
+        if (h.t <= 0) {
+          if (h.divesLeft > 0) { h.state = 'telegraph'; h.t = 0.32; h.y = floor; SFX.hoot(); }
+          else toPerch();
+        }
+        break;
+
+      // --- perje: lepeze perja prema junaku ---
+      case 'feathers':
+        h.t -= dt; h.dir = dx > 0 ? 1 : -1;
+        if (h.t <= 0) {
+          const base = Math.atan2((p.y - 6) - (h.y - 40 * h.hs), p.x - h.x);
+          const n = C.fan + (h.wave % 2 ? 0 : -1);
+          for (let i = 0; i < n; i++) this.spawnFeather(h.x, h.y - 40 * h.hs, base + (i - (n - 1) / 2) * 0.22, C.fsp);
+          SFX.flap(0.25, 0); SFX.snip(0.12);
+          h.wave--; h.t = 0.5;
+          if (h.wave <= 0) { h.state = 'perch'; h.t = C.wait + 0.3; }
+        }
+        break;
+
+      // --- vrisak: sleti u sredinu, udarni valovi po tlu ---
+      case 'toCenter':
+        if (flyTo(cx, floor, 260)) { h.state = 'shriek'; h.t = 0.7; h.n = C.shocks; SFX.sting(); }
+        break;
+      case 'shriek':
+        h.t -= dt; h.dir = dx > 0 ? 1 : -1;
+        if (h.t <= 0) {
+          SFX.screech(); cam.shake(300, 0.008); Buzz(120);
+          [-1, 1].forEach(s => this.shocks.push({ x: h.x + s * 20, dir: s, y: floor, life: 3 }));
+          h.n--; h.t = 0.75;
+          if (h.n <= 0) { h.state = 'tired'; h.t = 1.0; }
+        }
+        break;
+      case 'tired':
+        h.t -= dt;
+        if (h.t <= 0) toPerch();
+        break;
+
+      // --- prelet nisko preko gnijezda ---
+      case 'toEdge':
+        if (flyTo(h.side < 0 ? B.x1 + 24 : B.x2 - 24, floor - 8, 300)) { h.state = 'sweepTel'; h.t = 0.6; SFX.screech(); h.dir = -h.side; }
+        break;
+      case 'sweepTel':
+        h.t -= dt; h.dir = h.side < 0 ? 1 : -1;
+        if (h.t <= 0) { h.state = 'sweep'; h.vx = h.dir * 430; }
+        break;
+      case 'sweep':
+        h.x += h.vx * dt; this.hukFlapSound(h, dt, d);
+        if (body() && this.feet(p) > floor - 34) this.bossHurt(Math.sign(h.vx));
+        if (h.x < B.x1 + 20 || h.x > B.x2 - 20) toPerch();
+        break;
+
+      // --- ranjiva stanja ---
       case 'stunned': {
         h.vy += 900 * dt; h.x += h.vx * dt; h.y += h.vy * dt; h.ang = Phaser.Math.Clamp((h.ang || 0) + 300 * dt * h.dir, -80, 80);
-        const gy = this.hukGroundY(h.x, h.y - 20, true);
-        if (gy !== null && h.y >= gy && h.vy > 0) { h.y = gy; h.state = 'dazed'; h.t = 2.8; h.ang = 80 * h.dir; SFX.land(); SFX.crumble(); cam.shake(200, 0.006); this.ui.toast('Sad! Udari ga!', 1400); }
+        if (h.y >= floor && h.vy > 0) { h.y = floor; h.state = 'dazed'; h.t = C.daze; h.ang = 80 * h.dir; SFX.land(); SFX.crumble(); cam.shake(200, 0.006); }
         break;
       }
       case 'dazed':
         h.t -= dt;
         if (Math.floor(h.t * 5) !== Math.floor((h.t + dt) * 5)) this.hukTurnHead(h, h.head === 'front' ? 'back' : 'front');
-        if (h.t <= 0) { SFX.screech(); toPerch(); }
+        if (h.t <= 0) { SFX.screech(); h.ang = 0; toPerch(); }
         break;
-      case 'hurt':
-        h.t -= dt;
-        if (h.t <= 0) toPerch();
+      case 'enrage':
+        if (flyTo(cx, floor - 150, 260)) {
+          h.t -= dt; h.dir = dx > 0 ? 1 : -1;
+          if (!h.e1) { h.e1 = true; SFX.screech(); SFX.scream(); cam.shake(900, 0.01); Buzz([200, 80, 300]); if (h.phase === 2) { this.bossDark = true; (B.wisps || []).forEach(w => this.spawnWisp(w)); } }
+          if (h.t <= 0) { h.e1 = false; toPerch(); }
+        }
         break;
       case 'return': {
         if (!h.home) h.home = h.perches[0];
-        const ax = h.home.x - h.x, ay = h.home.y - h.y, ad = Math.hypot(ax, ay);
-        if (ad < 210 * dt + 2) { h.x = h.home.x; h.y = h.home.y; h.home = null; h.state = 'perch'; h.t = P.wait + Math.random() * 0.6; h.swoops = 0; }
-        else { h.x += ax / ad * 210 * dt; h.y += ay / ad * 210 * dt; h.dir = ax > 0 ? 1 : -1; this.hukFlapSound(h, dt, d); }
+        if (flyTo(h.home.x, h.home.y, 240)) { h.home = null; h.state = 'perch'; h.t = C.wait + Math.random() * 0.4; }
         break;
       }
       case 'dying':
         h.t -= dt; h.ang = 80 * h.dir;
         [h.body, h.headS].forEach(o => o.setAlpha(Math.max(0, h.t / 2.6)));
         if (Math.random() < 0.3) this.burst.emitParticleAt(h.x + (Math.random() - 0.5) * 30, h.y - 10, 2);
-        if (h.t <= 0) { h.alive = false; [h.body, h.headS, h.eyes].forEach(o => o.destroy()); this.bossDefeated(); return; }
+        if (h.t <= 0) {
+          h.alive = false; [h.body, h.headS, h.eyes].forEach(o => o.destroy()); this.bossDark = false;
+          this.arena = null; this.layout(); cam.startFollow(p, true, 0.12, 0.12); cam.setFollowOffset(0, 18);
+          this.bossDefeated(); return;
+        }
         break;
     }
+    this.updateFeathers(dt);
+    this.updateShocks(dt);
     this.drawHuk(h);
   }
 
   hitBoss(h) {
-    if (h.hitCd > 0) return;
-    h.hitCd = 0.6; h.hp--;
-    this.ui.bossBar(h.hp);
-    SFX.bugHit(); SFX.screech(); Buzz([60, 40, 160]);
-    this.cameras.main.shake(260, 0.008); this.cameras.main.flash(120, 255, 255, 255);
-    this.burst.emitParticleAt(h.x, h.y - 14, 16);
-    if (h.hp <= 0) { h.state = 'dying'; h.t = 2.6; SFX.scream(); this.ui.toast('Huk pada…', 2200); return; }
-    h.state = 'hurt'; h.t = 0.5; h.ang = 0; h.phase = Math.min(2, h.phase + 1);
-    this.ui.toast(h.phase === 1 ? 'Huk je bijesan!' : 'Huk je izvan sebe!', 1800);
-    if (h.phase === 2) (this.L.boss.wisps || []).forEach(w => this.spawnWisp(w));
+    if (h.hitCd > 0 || !(h.state === 'dazed' || h.state === 'stuck' || h.state === 'tired')) return;
+    h.hitCd = 0.3; h.hp--;
+    this.ui.bossBar(h.hp, h.maxHp);
+    SFX.bugHit(); Buzz(40);
+    this.cameras.main.shake(120, 0.005);
+    this.burst.emitParticleAt(h.x, h.y - 14, 8);
+    h.body.setTintFill(0xffffff); this.time.delayedCall(70, () => h.body.active && h.body.clearTint());
+    if (h.hp <= 0) { h.state = 'dying'; h.t = 2.6; SFX.scream(); this.feathers.forEach(f => f.s.destroy()); this.feathers = []; this.shocks = []; this.ui.toast('Huk pada…', 2200); return; }
+    const ph = h.hp > 20 ? 0 : h.hp > 10 ? 1 : 2;
+    if (ph !== h.phase) {
+      h.phase = ph; h.state = 'enrage'; h.t = 1.4; h.ang = 0;
+      this.ui.toast(ph === 1 ? 'Huk je bijesan!' : 'Huk gasi mjesec…', 1800);
+    }
+  }
+
+  spawnFeather(x, y, a, sp) {
+    const s = this.add.image(x, y, 'pero').setScale(1 / RES).setDepth(15).setRotation(a);
+    const glow = this.add.image(x, y, 'dot').setTint(0xffd23a).setBlendMode(Phaser.BlendModes.ADD).setDepth(61).setScale(0.6).setAlpha(0.7);
+    this.feathers.push({ s, glow, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 3 });
+  }
+
+  updateFeathers(dt) {
+    const p = this.player, g = this.L.grid;
+    this.feathers = this.feathers.filter(f => {
+      f.x += f.vx * dt; f.y += f.vy * dt; f.life -= dt;
+      f.s.setPosition(f.x, f.y); f.glow.setPosition(f.x, f.y);
+      const row = g[Math.floor(f.y / TILE)], c = row && row[Math.floor(f.x / TILE)];
+      let dead = f.life <= 0 || c === '#';
+      if (!dead && Math.abs(p.x - f.x) < 9 && Math.abs((p.y - 2) - f.y) < 13) { this.bossHurt(Math.sign(f.vx) || 1); dead = true; }
+      if (!dead && this.slashRect && this.slashRect.contains(f.x, f.y)) { dead = true; SFX.click(); this.dust.emitParticleAt(f.x, f.y, 3); }
+      if (dead) { f.s.destroy(); f.glow.destroy(); }
+      return !dead;
+    });
+  }
+
+  updateShocks(dt) {
+    const p = this.player, B = this.L.boss;
+    const g = this.shockG; g.clear();
+    this.shocks = this.shocks.filter(s => {
+      s.x += s.dir * 250 * dt; s.life -= dt;
+      const alive = s.life > 0 && s.x > B.x1 && s.x < B.x2;
+      if (!alive) return false;
+      const t = this.time.now / 1000;
+      g.fillStyle(0xffe0a0, 0.55); g.fillTriangle(s.x - s.dir * 18, s.y, s.x + s.dir * 6, s.y, s.x, s.y - 22 - Math.sin(t * 30) * 3);
+      g.fillStyle(0xffffff, 0.8); g.fillTriangle(s.x - s.dir * 8, s.y, s.x + s.dir * 4, s.y, s.x + s.dir * 1, s.y - 14);
+      if (Math.random() < 0.4) this.dust.emitParticleAt(s.x, s.y, 1);
+      if (Math.abs(p.x - s.x) < 10 && this.feet(p) > s.y - 20) this.bossHurt(s.dir);
+      return true;
+    });
   }
 
   bossDefeated() {
@@ -1387,7 +1516,7 @@ class GameScene extends Phaser.Scene {
     this.drawDarkness(time);
     this.updateAudio(dt);
 
-    this.registry.set('hud', { hp: st.hp, battery: st.battery, key: this.keyCount, flash: st.flash, hidden: !!st.hidden });
+    this.registry.set('hud', { maxHp: st.maxHp || 3, hp: st.hp, battery: st.battery, key: this.keyCount, flash: st.flash, hidden: !!st.hidden });
   }
 
   updatePlayer(dt, K, JD) {
@@ -1550,6 +1679,7 @@ class GameScene extends Phaser.Scene {
       st.atkCd = 0.34; st.atkT = 0.16; SFX.slash();
       const hx = st.face > 0 ? p.x + 4 : p.x - 30, hy = p.y - 14;
       const hit = new Phaser.Geom.Rectangle(hx, hy, 26, 26);
+      this.slashRect = hit; this.time.delayedCall(120, () => { this.slashRect = null; });
       this.crawlers.forEach(c => {
         if (!c.alive) return;
         const r = new Phaser.Geom.Rectangle(c.s.body.x, c.s.body.y, c.s.body.width, c.s.body.height);
@@ -1560,7 +1690,7 @@ class GameScene extends Phaser.Scene {
       this.webs.forEach(w => { if (!w.cut && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(w.x * TILE + 2, w.y * TILE + 2, TILE - 4, TILE - 4))) this.cutWeb(w); });
       this.wisps.forEach(w => { if (w.state === 'live' && hit.contains(w.x, w.y)) this.popWisp(w, false); });
       this.konci.forEach(th => { if (!th.cut && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(th.x - 22, th.y - 12, 44, 10))) { this.cutThread(th); this.taken.add(th.id); } });
-      this.huks.forEach(h => { if (h.boss && h.state === 'dazed' && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(h.x - 22, h.y - 30, 44, 32))) this.hitBoss(h); });
+      this.huks.forEach(h => { if (h.boss && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(h.x - 22, h.y - (h.state === 'dazed' ? 30 : 56), 44, h.state === 'dazed' ? 32 : 58))) this.hitBoss(h); });
       this.noise(p.x, p.y, 170);
     }
     this.slash.setVisible(st.atkT > 0);
@@ -1743,14 +1873,14 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  hurt(dir) {
+  hurt(dir, reason = 'hp') {
     if (Dev.is('god')) return;
     const st = this.st;
     st.hp--; st.invul = 1.3; st.lock = 0.25;
     this.player.body.setVelocity(dir * 170, -210);
     SFX.hurt(); Buzz(90);
     this.cameras.main.shake(150, 0.006);
-    if (st.hp <= 0) this.die('hp');
+    if (st.hp <= 0) this.die(reason);
   }
 
   die(reason, skin) {
@@ -1944,7 +2074,7 @@ class GameScene extends Phaser.Scene {
     c.globalCompositeOperation = 'source-over';
     c.globalAlpha = 1;
     c.clearRect(0, 0, cw, ch);
-    c.fillStyle = this.T.dark + (this.lightsOff ? Math.min(0.97, this.T.darkA + 0.02) : this.T.darkA) + ')';
+    c.fillStyle = this.T.dark + (this.bossDark ? 0.96 : this.lightsOff ? Math.min(0.97, this.T.darkA + 0.02) : this.T.darkA) + ')';
     c.fillRect(0, 0, cw, ch);
     c.globalCompositeOperation = 'destination-out';
     const L = (x, y, r, a = 1) => {

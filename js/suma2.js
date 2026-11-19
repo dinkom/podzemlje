@@ -136,6 +136,13 @@
     t.refresh();
   });
 
+  Art.add((scene) => {
+    Art.sheet(scene, 'pero', 16, 6, ['p'], (c) => {
+      c.fillStyle = '#3a3024'; c.beginPath(); c.moveTo(0, 3); c.quadraticCurveTo(8, -1, 16, 3); c.quadraticCurveTo(8, 7, 0, 3); c.fill();
+      c.strokeStyle = '#ffd23a'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(1, 3); c.lineTo(16, 3); c.stroke();
+    });
+  });
+
   // ================= dodatni dijelovi staze =================
   // tuneli ispod zemlje (f = red na kojem se stoji)
   const tunnels = (c) => {
@@ -361,20 +368,21 @@
     // široka grana ispod gnijezda; gljiva baca kroz rupu u gnijezdo
     G.plat(20, 90, 32); G.g[32][22] = 'B'; G.g[32][23] = 'B';
     // gnijezdo (arena)
-    G.fill(17, 0, 18, 24); G.fill(93, 0, 94, 24);
-    G.fill(19, 24, 92, 25); G.carve(21, 24, 24, 25);
-    put('checkpoint', 28, 23, 'C9'); put('note', 32, 23, 'N3');
-    [[40, 'Bx1'], [56, 'Bx2'], [72, 'Bx3']].forEach(([bx, id]) => put('battery', bx, 23, id, { respawn: 10 }));
-    put('exit', 86, 23);
-    const perches = [[26, 12], [55, 9], [84, 12]].map(([px, r]) => { G.plat(px - 3, px + 3, r); trunk(px, r + 1, px, 23); return at(px, r - 1); });
-    const boss = { perches, x1: T(19), x2: T(92), trigger: T(26), floorY: T(24), wisps: [at(40, 16), at(70, 16)] };
+    G.fill(17, 0, 18, 24); G.fill(56, 0, 60, 25);
+    G.fill(19, 24, 55, 25); G.carve(21, 24, 24, 25);
+    put('checkpoint', 27, 23, 'C9'); put('note', 30, 23, 'N3');
+    [[26, 'Bx1'], [39, 'Bx2'], [52, 'Bx3']].forEach(([bx, id]) => put('battery', bx, 23, id, { respawn: 14 }));
+    G.plat(31, 35, 22); G.plat(43, 47, 22);
+    put('exit', 51, 23);
+    const perches = [[24, 12], [38, 9], [51, 12]].map(([px, r]) => { G.plat(px - 3, px + 3, r); trunk(px, r + 1, px, 23); return at(px, r - 1); });
+    const boss = { perches, x1: T(19), x2: T(56), trigger: T(26), floorY: T(24), top: T(5), wisps: [at(29, 16), at(47, 16)] };
     const winds = [{ x1: T(19), x2: T(92), y1: T(40), y2: T(66), f: 130, on: 2.0, off: 3.0, ph: 0 }, { x1: T(19), x2: T(92), y1: T(66), y2: T(80), f: -120, on: 1.8, off: 3.2, ph: 1.5 }];
     return {
       theme: 'hukovo', W, H, grid: G.g, trunks: G.trunks, objects: O, monsters: [], boss, winds, doors: [], start: at(4, 95), doorTex: 'vrata_suma',
       notes: {
         N1: 'Najstarije stablo u šumi.\nGore, iznad oblaka granja — gnijezdo.\n\nPenji se. Ne gledaj dolje.',
         N2: 'Vjetar ovdje udara sa strane.\nDrži se grane kad zapuše.',
-        N3: 'Huk mrzi svjetlo u očima.\nKad se obruši — zasvijetli mu u lice.\nKad padne — udri.',
+        N3: 'Huk mrzi svjetlo u očima.\nKad se obruši — zasvijetli mu u lice.\nKad padne — udri. Puno puta.\n\nI kad zaglavi kandže u gnijezdu.',
       },
     };
   }
