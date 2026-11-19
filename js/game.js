@@ -353,7 +353,7 @@ class GameScene extends Phaser.Scene {
     // blizina
     const gap = p.x - W.x;
     if (gap < 220 && !st.dead) this.cameras.main.shake(100, 0.0015 * (1 - gap / 220));
-    if (!st.dead && gap < 6) { if (st.hidden) { st.hidden = null; p.setVisible(true); this.peek.setVisible(false); } this.die('monster'); }
+    if (!st.dead && gap < 6) { if (st.hidden) { st.hidden = null; p.setVisible(true); this.peek.setVisible(false); } this.die('monster', D.style === 'spider' ? 'pauk' : D.style === 'krojac' ? 'krojac' : undefined); }
   }
 
   // ---------------- pauci ----------------

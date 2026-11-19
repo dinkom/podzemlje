@@ -280,6 +280,33 @@
       c.beginPath(); c.arc(34.5, 44, 3.4, Math.PI, 0); c.strokeStyle = '#7a7f88'; c.lineWidth = 1.4; c.stroke();
       ell(c, 34.5, 49, 1, 1, '#111', null);
     });
+    // lice golemog pauka za jumpscare
+    {
+      const t = scene.textures.createCanvas('lice_pauk', 512, 512), c = t.getContext();
+      c.fillStyle = '#000'; c.fillRect(0, 0, 512, 512);
+      c.save(); c.translate(256, 250);
+      // dlakava glava
+      c.fillStyle = radial(c, 0, -20, 20, 260, [[0, '#3a2a34'], [0.7, '#1c1218'], [1, '#080406']]);
+      c.beginPath(); c.ellipse(0, 0, 240, 210, 0, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = 'rgba(120,100,110,0.35)'; c.lineWidth = 3;
+      for (let k = 0; k < 140; k++) { const a = Math.random() * Math.PI * 2, r = 120 + Math.random() * 120; c.beginPath(); c.moveTo(Math.cos(a) * r, Math.sin(a) * r * 0.88); c.lineTo(Math.cos(a) * (r + 18), Math.sin(a) * (r + 18) * 0.88 + 6); c.stroke(); }
+      // osam očiju
+      [[-62, -70, 46], [62, -70, 46], [-150, -40, 26], [150, -40, 26], [-30, -150, 22], [30, -150, 22], [-110, -120, 16], [110, -120, 16]].forEach(([x, y, r]) => {
+        c.fillStyle = '#000'; c.beginPath(); c.arc(x, y, r + 7, 0, Math.PI * 2); c.fill();
+        c.fillStyle = radial(c, x - r * 0.2, y - r * 0.2, 0, r, [[0, '#ff6a5a'], [0.4, '#b0101a'], [1, '#2a0204']]); c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+        c.fillStyle = 'rgba(255,255,255,0.85)'; c.beginPath(); c.arc(x - r * 0.35, y - r * 0.35, r * 0.18, 0, Math.PI * 2); c.fill();
+      });
+      // čeljusti s očnjacima
+      [-1, 1].forEach(sg => {
+        c.fillStyle = '#140a10'; c.beginPath(); c.moveTo(sg * 20, 20); c.quadraticCurveTo(sg * 110, 40, sg * 90, 150); c.lineTo(sg * 40, 120); c.closePath(); c.fill();
+        c.fillStyle = '#e8e0d0'; c.beginPath(); c.moveTo(sg * 92, 140); c.quadraticCurveTo(sg * 100, 200, sg * 40, 250); c.quadraticCurveTo(sg * 70, 195, sg * 62, 138); c.closePath(); c.fill();
+        c.fillStyle = 'rgba(160,220,120,0.8)'; c.beginPath(); c.ellipse(sg * 44, 262, 6, 12, 0, 0, Math.PI * 2); c.fill();
+      });
+      c.fillStyle = '#300408'; c.beginPath(); c.ellipse(0, 90, 40, 60, 0, 0, Math.PI * 2); c.fill();
+      c.restore();
+      c.fillStyle = radial(c, 256, 250, 150, 380, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.85)']]); c.fillRect(0, 0, 512, 512);
+      t.refresh();
+    }
     // Hukovo lice za jumpscare — ljudsko lice u sovinom perju
     const t = scene.textures.createCanvas('lice_huk', 512, 512);
     const c = t.getContext();
