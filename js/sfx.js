@@ -154,6 +154,12 @@ const SFX = (() => {
     squelch(vol = 0.2) { noise({ a: 0.01, d: 0.22, vol, type: 'lowpass', f: 500, f2: 120, q: 3 }); tone({ type: 'sine', f: 140, f2: 60, d: 0.14, vol: vol * 0.5 }); },
     rustle(vol = 0.15) { noise({ a: 0.02, d: 0.25, vol, type: 'bandpass', f: 3200, f2: 1800, q: 0.8 }); noise({ d: 0.15, vol: vol * 0.6, type: 'highpass', f: 5000, delay: 0.08 }); },
     chitter(vol = 0.3, pan = 0) { for (let i = 0; i < 6; i++) tone({ type: 'square', f: 1400 + Math.random() * 900, f2: 700, d: 0.03, vol: vol * 0.12, pan, delay: i * 0.045 }); noise({ d: 0.3, vol: vol * 0.4, type: 'highpass', f: 2800, pan }); },
+    twang() { tone({ type: 'triangle', f: 880, f2: 860, a: 0.002, d: 0.6, vol: 0.12 }); tone({ type: 'sine', f: 1760, f2: 1700, d: 0.4, vol: 0.06 }); tone({ type: 'sine', f: 2637, d: 0.9, vol: 0.05, delay: 0.05 }); },
+    snip(vol = 0.2) { for (let i = 0; i < 2; i++) { noise({ d: 0.05, vol, type: 'highpass', f: 4000, delay: i * 0.12 }); tone({ type: 'square', f: 2200, f2: 1400, d: 0.03, vol: vol * 0.3, delay: i * 0.12 }); } },
+    whirr() { tone({ type: 'sawtooth', f: 90, f2: 140, a: 0.05, d: 0.4, vol: 0.06 }); noise({ d: 0.4, vol: 0.05, type: 'bandpass', f: 900, q: 2 }); },
+    klak(vol = 0.15, pan = 0) { tone({ type: 'square', f: 600 + Math.random() * 200, f2: 300, d: 0.03, vol: vol * 0.5, pan }); noise({ d: 0.04, vol, type: 'bandpass', f: 1800, q: 3, pan }); },
+    distant() { const f = 700 + Math.random() * 200; tone({ type: 'sine', f, f2: f * 1.3, a: 0.4, d: 1.4, vol: 0.02 }); tone({ type: 'sine', f: f * 1.3, f2: f, a: 0.3, d: 1.4, vol: 0.02, delay: 1.3 }); },
+    clank() { tone({ type: 'triangle', f: 180 + Math.random() * 80, f2: 120, d: 0.5, vol: 0.06 }); noise({ d: 0.12, vol: 0.06, type: 'bandpass', f: 2500, q: 4 }); },
     gust() { noise({ a: 0.25, d: 1.4, vol: 0.22, type: 'bandpass', f: 400, f2: 1400, q: 0.7 }); noise({ a: 0.4, d: 1.2, vol: 0.12, type: 'highpass', f: 2500, delay: 0.1 }); },
     wispZap() { tone({ type: 'sine', f: 1600, f2: 120, a: 0.01, d: 0.7, vol: 0.18 }); tone({ type: 'triangle', f: 2400, f2: 300, d: 0.5, vol: 0.06, delay: 0.05 }); noise({ d: 0.5, vol: 0.12, type: 'bandpass', f: 3000, f2: 400, q: 2 }); },
     screech() {

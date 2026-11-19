@@ -550,7 +550,7 @@ const Level = (() => {
     get count() { return ZONES.length; },
     worlds: WORLDS, worldOf, addZones,
     tools: { grid, at, door },
-    build(i) { const L = ZONES[i](); L.index = i; L.name = THEMES[L.theme].name; L.world = worldOf(i); L.glide = L.world >= 1; return L; },
+    build(i) { const L = ZONES[i](); L.index = i; L.name = THEMES[L.theme].name; L.world = worldOf(i); L.glide = L.world >= 1; L.cling = L.world >= 2; return L; },
     addVisuals, addCollision,
   };
 })();

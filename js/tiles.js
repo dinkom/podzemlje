@@ -73,6 +73,7 @@ const Tiles = (() => {
   function rockTile(c, mask, v, T) {
     const R = rng(mask * 31 + v * 977 + 5 + T.id.length * 1000);
     const up = mask & 1, rt = mask & 2, dn = mask & 4, lf = mask & 8;
+    if (HOOKS[T.id] && HOOKS[T.id].rock) { HOOKS[T.id].rock(c, { up, rt, dn, lf, v, mask }, T, R, OUTL); return; }
     c.save();
     c.beginPath();
     const r = 6;

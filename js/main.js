@@ -496,7 +496,16 @@ class SoonScene extends TransitionScene {
     const ey = this.add.image(hg.x, hg.y, 'oci_huk').setScale(1.6 * u / RES).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
     huk.setOrigin(0.5, 0.5);
     const done = !!(data && data.done);
-    if (!done) {
+    if (!done && this.world === 2) {
+      // Krojač visi naglavačke na koncu ispred mjeseca
+      const kx = moon.x - 30 * u, ky = moon.y - 10 * u;
+      const th = this.add.graphics(); th.lineStyle(1.5 * u, 0xe8e0c8, 0.8); th.beginPath(); th.moveTo(kx, 0); th.lineTo(kx, ky); th.strokePath(); th.setAlpha(0);
+      const kr = this.add.image(kx, ky, 'krojac', 'stand').setOrigin(0.5, 0).setFlipY(true).setScale(1.5 * u / RES).setTint(0x000000).setAlpha(0);
+      const ke = this.add.image(kx + 2 * 1.5 * u, ky + 68 * 1.5 * u, 'oci_krojac').setFlipY(true).setScale(1.5 * u / RES).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+      this.tweens.add({ targets: [th, kr], alpha: 1, duration: 2500, delay: 600 });
+      this.tweens.add({ targets: ke, alpha: 1, duration: 300, delay: 3200, onStart: () => SFX.snip(0.4) });
+      this.tweens.add({ targets: [kr, ke], y: '+=' + 6 * u, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    } else if (!done) {
       this.tweens.add({ targets: [huk, hg], alpha: 1, duration: 2500, delay: 600 });
       this.tweens.add({ targets: ey, alpha: 1, duration: 300, delay: 3200, onStart: () => SFX.hoot() });
     } else {
@@ -511,15 +520,22 @@ class SoonScene extends TransitionScene {
     const items = [];
     items.push(this.add.text(w / 2, h * 0.16, `SVIJET ${this.world + 1}`, { fontFamily: FONT, fontSize: Math.round(16 * u) + 'px', color: '#bcd4ff', letterSpacing: 6 * u }).setOrigin(0.5));
     items.push(this.add.text(w / 2, h * 0.16 + 38 * u, W.name, { fontFamily: FONT, fontSize: Math.round(40 * u) + 'px', color: '#f3f0dc', stroke: '#000', strokeThickness: 5 * u }).setOrigin(0.5));
-    items.push(this.add.text(w / 2, h * 0.16 + 78 * u, done ? 'Huk je pao. Šuma je tiha.\nA iza šume — svjetla Grada. (uskoro)' : 'Nastavlja se… Huk te još čeka.', { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(16 * u) + 'px', color: '#bcd4ff' }).setOrigin(0.5).setAlign('center'));
+    items.push(this.add.text(w / 2, h * 0.16 + 78 * u, done ? 'Huk je pao. Šuma je tiha.\nA iza šume — svjetla Grada.' : this.world === 2 ? 'Nastavlja se… Krojač ti već uzima mjere.' : 'Nastavlja se… Huk te još čeka.', { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(16 * u) + 'px', color: '#bcd4ff' }).setOrigin(0.5).setAlign('center'));
     this.btns = [];
     const r = this.add.rectangle(w / 2, h * 0.84, 240 * u, 44 * u, 0x000000, 0.4).setStrokeStyle(2 * u, 0xf3f0dc, 0.6);
     const t = this.add.text(w / 2, h * 0.84, 'Izbornik', { fontFamily: FONT, fontSize: Math.round(19 * u) + 'px', color: '#f3f0dc' }).setOrigin(0.5);
     items.push(r, t); this.btns.push({ r, act: 'menu' });
+    const next = Level.worlds[this.world + 1];
+    if (done && next && next.zones.length) {
+      r.y = t.y = h * 0.9;
+      const r2 = this.add.rectangle(w / 2, h * 0.76, 240 * u, 44 * u, 0x000000, 0.4).setStrokeStyle(2 * u, 0xffd25a, 0.8);
+      const t2 = this.add.text(w / 2, h * 0.76, 'Dalje — ' + next.name, { fontFamily: FONT, fontSize: Math.round(19 * u) + 'px', color: '#ffd25a' }).setOrigin(0.5);
+      items.push(r2, t2); this.btns.push({ r: r2, act: 'go' }); this.goNext = true;
+    }
     items.forEach(o => { o.setAlpha(0); this.tweens.add({ targets: o, alpha: 1, duration: 900, delay: 300 }); });
     this.t0 = this.time.now;
     this.input.on('pointerup', (p) => { if (this.time.now - this.t0 > 700) this.tapBtn(p); });
-    this.input.keyboard.on('keydown', (e) => { if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') { SFX.click(); this.scene.start('Title'); } });
+    this.input.keyboard.on('keydown', (e) => { if (this.time.now - this.t0 < 700) return; if ((e.code === 'Enter' || e.code === 'Space') && this.goNext) this.choose('go'); else if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') { SFX.click(); this.scene.start('Title'); } });
     SFX.win();
     this.cameras.main.fadeIn(900, 0, 0, 0);
   }

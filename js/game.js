@@ -88,6 +88,7 @@ class GameScene extends Phaser.Scene {
     this.items = []; this.cabinets = []; this.notes = []; this.checkpoints = []; this.crawlers = []; this.bats = []; this.spiders = []; this.icicles = [];
     this.wisps = []; this.huks = []; this.forest = !!T.forest;
     this.exit = null; this.pendingExit = null; this.wall = null;
+    this.lamps = []; this.konci = []; this.needles = []; this.lutke = []; this.krojaci = []; this.chaseK = null;
     this.threads = this.add.graphics().setDepth(12);
     for (const o of L.objects) {
       if (o.type === 'cabinet') {
@@ -109,7 +110,7 @@ class GameScene extends Phaser.Scene {
       } else if (o.type === 'exit' && L.boss) {
         this.pendingExit = o;
       } else if (o.type === 'exit') {
-        this.exit = { ...o, s: this.add.image(o.x, o.y, 'izlaz').setOrigin(0.5, 1).setScale(1 / RES).setDepth(4) };
+        this.exit = { ...o, s: this.add.image(o.x, o.y, L.exitTex || 'izlaz').setOrigin(0.5, 1).setScale(1 / RES).setDepth(4) };
       } else if (o.type === 'crawler') {
         this.spawnCrawler(o);
       } else if (o.type === 'bat') {
@@ -120,6 +121,16 @@ class GameScene extends Phaser.Scene {
         this.spawnIcicle(o);
       } else if (o.type === 'wisp') {
         this.spawnWisp(o);
+      } else if (o.type === 'lamp') {
+        this.spawnLamp(o);
+      } else if (o.type === 'konac') {
+        if (!taken.has(o.id)) this.spawnThread(o);
+      } else if (o.type === 'igla') {
+        this.spawnNeedle(o);
+      } else if (o.type === 'lutka') {
+        this.spawnLutka(o);
+      } else if (o.type === 'krojacCameo') {
+        if (!taken.has(o.id)) { this.spawnKrojac({ id: o.id, x1: o.x - 600, x2: o.x + 600, cy: o.y, x: o.x }); const k = this.krojaci[this.krojaci.length - 1]; k.state = 'cameo'; k.cameo = true; this.add.graphics().setDepth(3).lineStyle(1.6, 0x0c0a10, 1).lineBetween(o.x - 700, o.y, o.x + 700, o.y); }
       } else if (o.type === 'hukCameo') {
         if (!taken.has(o.id)) this.spawnHuk({ id: o.id, perches: [o], x1: o.x - 400, x2: o.x + 400, cameo: true });
       }
@@ -148,6 +159,10 @@ class GameScene extends Phaser.Scene {
       if (ch === 'W') this.webs.push({ x, y, cut: false, s: this.add.image(x * TILE, y * TILE, 'mreza').setOrigin(0).setScale(1 / RES).setDepth(17).setAlpha(0.85) });
     }));
     (L.huks || []).forEach(h => this.spawnHuk(h));
+    this.threadG = this.add.graphics().setDepth(13);
+    this.kThreadG = this.add.graphics().setDepth(13);
+    (L.krojaci || []).forEach(k => this.spawnKrojac(k));
+    this.drawCables();
     if (L.boss) { this.spawnHuk({ id: 'BOSS', perches: L.boss.perches, x1: L.boss.x1, x2: L.boss.x2 }); const bh = this.huks[this.huks.length - 1]; bh.boss = true; bh.state = 'idle'; bh.hp = 3; bh.phase = 0; }
     this.buildWind();
 
@@ -241,9 +256,10 @@ class GameScene extends Phaser.Scene {
   }
 
   spawnCrawler(o) {
-    const s = this.physics.add.sprite(o.x, o.y - 8, 'bug', 'c0').setScale(1 / RES).setDepth(12);
+    const tex = this.T.crawler || 'bug';
+    const s = this.physics.add.sprite(o.x, o.y - 8, tex, 'c0').setScale(1 / RES).setDepth(12);
     s.body.setSize(18 * RES, 9 * RES).setOffset(3 * RES, 4.5 * RES);
-    s.play('bug-walk');
+    s.play(tex + '-walk');
     this.physics.add.collider(s, this.layer);
     const eyes = this.add.image(0, 0, 'oci_buba').setScale(1 / RES).setDepth(61).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.55);
     this.crawlers.push({ id: o.id, s, eyes, dir: Math.random() < 0.5 ? -1 : 1, hp: 2, hurtT: 0, alive: true });
@@ -300,11 +316,12 @@ class GameScene extends Phaser.Scene {
     if (W.delay > 0) W.delay -= dt;
     else W.x = Math.min(D.stopX, W.x + D.speed * dt);
     W.growlT -= dt;
-    if (W.growlT <= 0) { W.growlT = D.style === 'spider' ? 1.1 : 2.2; D.style === 'spider' ? SFX.chitter(0.35) : SFX.wallGrowl(); }
+    if (W.growlT <= 0) { W.growlT = D.style ? 1.1 : 2.2; D.style === 'spider' ? SFX.chitter(0.35) : D.style === 'krojac' ? SFX.screech() : SFX.wallGrowl(); }
     // crtanje
     const v = this.cameras.main.worldView, g = this.wallG, t = this.time.now / 1000;
     g.clear();
     if (D.style === 'spider') { if (W.x > v.x - 140) this.drawGiantSpider(W.x, D.y, t); else this.wallEyes.forEach(e => e.setVisible(false)); }
+    else if (D.style === 'krojac') { this.wallEyes.forEach(e => e.setVisible(false)); this.drawKrojacChase(W.x, D.y, t); }
     else if (W.x > v.x - 60) {
       const top = v.y - 40, bot = v.bottom + 40;
       g.fillStyle(0x000000, 0.97);
@@ -1023,6 +1040,284 @@ class GameScene extends Phaser.Scene {
     }
   }
 
+  // ================= GRAD =================
+  // ---------------- ulične svjetiljke ----------------
+  spawnLamp(o) {
+    this.add.image(o.x, o.y, 'ulicna_lampa').setOrigin(0.5, 1).setScale(1 / RES).setDepth(7);
+    const g = this.add.image(o.x + 9, o.y - 66, 'glow').setScale(0.9).setTint(0xffb860).setBlendMode(Phaser.BlendModes.ADD).setDepth(61).setAlpha(0.55);
+    this.lamps.push({ x: o.x + 9, y: o.y, g, flick: Math.random() * 6, broken: !!o.broken });
+  }
+
+  // ---------------- konci (alarmi Krojača) ----------------
+  spawnThread(o) {
+    this.konci.push({ id: o.id, x: o.x, y: o.y, cut: false, cd: 0, bell: this.add.image(o.x, o.y - 7, 'dot').setTint(0xd8c070).setScale(0.45).setDepth(13) });
+  }
+
+  drawThreads(t) {
+    const g = this.threadG; if (!g) return;
+    g.clear();
+    this.konci.forEach(th => {
+      if (th.cut) return;
+      const sag = th.cd > 0 ? Math.sin(t * 40) * 2 : 1;
+      g.lineStyle(0.8, 0xe8e0c8, 0.85);
+      g.beginPath(); g.moveTo(th.x - 22, th.y - 7); g.lineTo(th.x, th.y - 7 + sag); g.lineTo(th.x + 22, th.y - 7); g.strokePath();
+      g.fillStyle(0x8a8a90, 1); g.fillRect(th.x - 23, th.y - 9, 1.5, 9); g.fillRect(th.x + 21.5, th.y - 9, 1.5, 9);
+      th.bell.setPosition(th.x, th.y - 6 + sag);
+    });
+  }
+
+  updateThreads(dt) {
+    const p = this.player, st = this.st, f = this.feet(p);
+    this.konci.forEach(th => {
+      th.cd = Math.max(0, th.cd - dt);
+      if (th.cut || th.cd > 0 || st.dead || Dev.is('fly')) return;
+      if (Math.abs(p.x - th.x) < 22 && f > th.y - 9 && f < th.y + 6) {
+        th.cd = 2.2;
+        SFX.twang(); Buzz(50);
+        this.ui.toast('Konac je zazvonio…', 1400);
+        this.krojaci.forEach(k => this.kAlarm(k, th.x));
+      }
+    });
+  }
+
+  cutThread(th) {
+    th.cut = true; th.bell.destroy();
+    SFX.snip(0.15);
+    this.dust.emitParticleAt(th.x, th.y - 7, 3);
+  }
+
+  // ---------------- igle šivaćih strojeva ----------------
+  spawnNeedle(o) {
+    const g = this.L.grid, cx = Math.floor(o.x / TILE);
+    let cy = Math.floor((o.y - 1) / TILE);
+    while (cy > 0 && g[cy - 1][cx] !== '#') cy--;
+    const top = cy * TILE;
+    const head = this.add.image(o.x, top, 'stroj').setOrigin(0.5, 0).setScale(1 / RES).setDepth(12);
+    const s = this.add.image(o.x, top + 14, 'igla').setOrigin(0.5, 1).setScale(1 / RES).setDepth(11);
+    this.needles.push({ x: o.x, top, floor: o.y, s, head, period: o.period || 2.4, ph: o.ph || Math.random() * 2, y: top + 14, hit: false });
+  }
+
+  updateNeedles(dt) {
+    const t = this.time.now / 1000, p = this.player, st = this.st;
+    this.needles.forEach(n => {
+      const k = (t + n.ph) % n.period, len = n.floor - n.top - 14;
+      let y;
+      if (k < n.period - 0.95) { y = n.top + 14; n.hit = false; n.s.x = n.x; }
+      else if (k < n.period - 0.5) { y = n.top + 14; n.s.x = n.x + Math.sin(t * 60) * 0.8; if (!n.warned) { n.warned = true; if (Math.abs(p.x - n.x) < 300) SFX.whirr(); } }
+      else if (k < n.period - 0.38) { const q = (k - (n.period - 0.5)) / 0.12; y = n.top + 14 + len * q; n.warned = false; }
+      else if (k < n.period - 0.18) { y = n.floor; if (!n.thud) { n.thud = true; if (Math.abs(p.x - n.x) < 300) SFX.stomp(); } }
+      else { const q = (k - (n.period - 0.18)) / 0.18; y = n.floor - len * q; n.thud = false; }
+      n.y = y; n.s.y = y;
+      const vis = Phaser.Math.Clamp(y - n.top, 14, 160); n.s.setCrop(0, (160 - vis) * RES, 6 * RES, vis * RES);
+      const down = y > n.top + 20;
+      if (down && !st.dead && st.invul <= 0 && !Dev.is('god') && Math.abs(p.x - n.x) < 9 && p.y - 10 < y && this.feet(p) > n.top + 14) this.hurt(Math.sign(p.x - n.x) || 1);
+    });
+  }
+
+  // ---------------- lutke (mrdaju se kad ih ne gledaš) ----------------
+  spawnLutka(o) {
+    const s = this.add.sprite(o.x, o.y, 'lutka', 'pose0').setOrigin(0.5, 1).setScale(1 / RES).setDepth(13);
+    this.lutke.push({ x: o.x, y: o.y, hx: o.x, s, minX: o.minX || o.x - 260, maxX: o.maxX || o.x + 260, moving: false, stepT: 0, pose: 0, dir: -1 });
+  }
+
+  lutkaGround(x, y) {
+    const g = this.L.grid, cx = Math.floor(x / TILE), cy = Math.floor((y - 1) / TILE);
+    const below = g[cy + 1] && g[cy + 1][cx], here = g[cy] && g[cy][cx];
+    return (below === '#' || below === '-' || below === 'D') && here !== '#' && here !== 'D' && here !== '^';
+  }
+
+  updateLutke(dt) {
+    const p = this.player, st = this.st;
+    this.lutke.forEach(l => {
+      const dx = p.x - l.x, dy = this.feet(p) - l.y;
+      const near = Math.abs(dx) < 420 && Math.abs(dy) < 120;
+      const watched = st.face === Math.sign(l.x - p.x) && Math.abs(dx) < 380;
+      let target = null;
+      if (st.hidden || st.dead || !near) target = Math.abs(l.x - l.hx) > 4 ? l.hx : null;
+      else if (!watched && p.x > l.minX - 40 && p.x < l.maxX + 40) target = p.x;
+      const was = l.moving;
+      l.moving = false;
+      if (target !== null && (!watched || st.hidden)) {
+        const d = Math.sign(target - l.x), sp = (st.hidden || !near) ? 40 : 98;
+        const nx = l.x + d * sp * dt;
+        if (Math.abs(target - l.x) > 3 && nx > l.minX && nx < l.maxX && this.lutkaGround(nx + d * 8, l.y)) { l.x = nx; l.dir = d; l.moving = true; }
+      }
+      if (l.moving) {
+        l.stepT -= dt;
+        if (l.stepT <= 0) { l.stepT = 0.32; if (Math.abs(dx) < 380) SFX.klak(Phaser.Math.Clamp(0.22 - Math.abs(dx) / 2000, 0.03, 0.22), Phaser.Math.Clamp(-dx / 300, -1, 1)); }
+        l.s.setFrame(Math.floor(this.time.now / 160) % 2 ? 'walk0' : 'walk1');
+      } else if (was) {
+        l.pose = (l.pose + 1 + ((Math.random() * 2) | 0)) % 3;
+        l.s.setFrame('pose' + l.pose);
+        if (Math.abs(dx) < 200) SFX.sting();
+      }
+      l.s.setPosition(l.x, l.y).setFlipX(l.dir < 0);
+      if (!st.dead && !st.hidden && !Dev.is('god') && Math.abs(dx) < 13 && dy > -30 && dy < 8) this.die('monster', 'lutka');
+    });
+  }
+
+  // ---------------- KROJAČ ----------------
+  spawnKrojac(def) {
+    const s = this.add.sprite(def.x || (def.x1 + def.x2) / 2, def.cy, 'krojac', 'crawl0').setScale(1 / RES).setDepth(14);
+    const eyes = this.add.image(0, 0, 'oci_krojac').setScale(1 / RES).setDepth(60).setBlendMode(Phaser.BlendModes.ADD);
+    const k = { ...def, x: s.x, y: def.cy, s, eyes, state: 'patrol', dir: 1, t: 0, pauseT: 2 + Math.random() * 3, alive: true, lt: 0 };
+    if (def.dormant && !this.taken.has(def.dormant)) { k.alive = false; s.setVisible(false); eyes.setVisible(false); }
+    this.krojaci.push(k);
+  }
+
+  kLOS(k) {
+    const p = this.player, g = this.L.grid;
+    const x0 = k.x, y0 = this.kInv(k) ? k.y + 50 : k.y - 50, x1 = p.x, y1 = p.y - 4;
+    const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 10);
+    for (let i = 1; i < n; i++) {
+      const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n;
+      const row = g[Math.floor(y / TILE)], c = row && row[Math.floor(x / TILE)];
+      if (c === '#' || c === 'D') return false;
+    }
+    return true;
+  }
+
+  kInv(k) { return k.state === 'cameo' || k.state === 'leave' || k.state === 'patrol' || k.state === 'listen' || k.state === 'hunt' || k.state === 'aim' || k.state === 'drop'; }
+
+  kAlarm(k, x) {
+    if (!k.alive || k.cameo || (k.state !== 'patrol' && k.state !== 'listen')) return;
+    if (x < k.x1 - 80 || x > k.x2 + 80) return;
+    k.state = 'hunt'; k.tx = Phaser.Math.Clamp(x, k.x1, k.x2); k.t = 4;
+    SFX.snip(0.3); SFX.sting();
+  }
+
+  kHear(k, x, y, r) {
+    if (!k.alive || k.cameo || r <= 0 || this.st.hidden) return;
+    if (Math.hypot(x - k.x, y - (k.y + 50)) < r && this.kLOS(k)) this.kAlarm(k, x);
+  }
+
+  wakeKrojac(k) {
+    k.alive = true; k.state = 'patrol'; k.x = Phaser.Math.Clamp(this.player.x + 200, k.x1, k.x2); k.y = k.cy;
+    k.s.setVisible(true); k.eyes.setVisible(true);
+    SFX.snip(0.4); SFX.rumble(); Buzz([150, 60, 150]); this.cameras.main.shake(500, 0.004);
+    this.ui.toast('Gore, u mraku, nešto je zaškljocalo…', 2400);
+  }
+
+  updateKrojac(k, dt) {
+    if (!k.alive) return;
+    const p = this.player, st = this.st, t = this.time.now / 1000;
+    const visible = !st.hidden && !st.dead;
+    const dx = p.x - k.x;
+    const inLight = this.lamps.some(l => !l.broken && Math.abs(p.x - l.x) < 46 && p.y < l.y && p.y > l.y - 110);
+    const touch = () => { if (!visible || Dev.is('god')) return false; const cy = this.kInv(k) ? k.y + 50 : k.y - 50; return Math.abs(p.x - k.x) < 16 && Math.abs(p.y - cy) < 52; };
+
+    if (k.state === 'cameo') {
+      const cam = this.cameras.main;
+      if (!k.cTrig) {
+        k.x += k.dir * 20 * dt; if (Math.abs(k.x - k.x1 - 600) > 120) k.dir *= -1;
+        if (visible && Math.abs(dx) < 250) {
+          k.cTrig = true; k.t = 0; this.taken.add(k.id);
+          st.lock = 4.4; p.body.setVelocityX(0); st.flash = false;
+          cam.stopFollow(); cam.pan(k.x, k.y + 70, 1000, 'Sine.easeInOut');
+          SFX.snip(0.3); SFX.sting();
+        }
+      } else {
+        k.t += dt;
+        if (k.t > 1.2 && !k.c1) { k.c1 = true; k.dir = Math.sign(dx) || 1; SFX.snip(0.4); }
+        if (k.t > 1.9 && !k.c2) { k.c2 = true; SFX.screech(); cam.shake(400, 0.006); Buzz([100, 50, 200]); }
+        if (k.t > 3.0) { k.state = 'leave'; k.dir = -(Math.sign(dx) || 1); }
+      }
+    } else if (k.state === 'leave') {
+      k.y -= 200 * dt; k.x += k.dir * 50 * dt; k.t += dt;
+      if (!k.pb && k.t > 3.6) { k.pb = true; this.cameras.main.pan(p.x, p.y + 18, 700, 'Sine.easeInOut', true, (c, q) => { if (q === 1) { c.startFollow(p, true, 0.12, 0.12); c.setFollowOffset(0, 18); } }); }
+      if (k.pb && k.y < this.cameras.main.worldView.y - 200) { k.alive = false; k.s.setVisible(false); k.eyes.setVisible(false); return; }
+    } else if (k.state === 'patrol' || k.state === 'listen') {
+      if (k.state === 'patrol') {
+        k.x += k.dir * 34 * dt;
+        if (k.x < k.x1) { k.x = k.x1; k.dir = 1; }
+        if (k.x > k.x2) { k.x = k.x2; k.dir = -1; }
+        k.pauseT -= dt;
+        if (k.pauseT <= 0) { k.state = 'listen'; k.t = 1.6; if (Math.abs(dx) < 400) SFX.snip(0.08); }
+      } else { k.t -= dt; if (k.t <= 0) { k.state = 'patrol'; k.pauseT = 3 + Math.random() * 3; if (Math.random() < 0.4) k.dir *= -1; } }
+      const sees = visible && p.x > k.x1 - 60 && p.x < k.x2 + 60 && this.kLOS(k) &&
+        ((Math.abs(dx) < 70 && (!st.sneak || inLight)) || (inLight && Math.abs(dx) < 260) || (st.flash && Math.abs(dx) < 300));
+      if (sees) this.kAlarm(k, p.x);
+    } else if (k.state === 'hunt') {
+      k.t -= dt;
+      if (visible && this.kLOS(k)) k.tx = Phaser.Math.Clamp(p.x + p.body.velocity.x * 0.3, k.x1, k.x2);
+      const d = k.tx - k.x;
+      k.dir = Math.sign(d) || k.dir;
+      k.x += Math.sign(d) * Math.min(Math.abs(d), 165 * dt);
+      if (Math.abs(d) < 4) { k.state = 'aim'; k.t = 0.7; SFX.snip(0.35); Buzz(40); }
+      else if (k.t <= 0) { k.state = 'patrol'; k.pauseT = 3; }
+    } else if (k.state === 'aim') {
+      k.t -= dt;
+      if (k.t <= 0) {
+        k.gy = this.hukGroundY(k.x, k.cy + 110, true);
+        if (k.gy === null) { k.state = 'patrol'; k.pauseT = 2; }
+        else { k.state = 'drop'; SFX.screech(); }
+      }
+    } else if (k.state === 'drop') {
+      k.y += 560 * dt;
+      if (touch()) { this.die('monster', 'krojac'); return; }
+      if (k.y + 96 >= k.gy) { k.y = k.gy; k.state = 'ground'; k.t = 1.5; SFX.stomp(); this.cameras.main.shake(180, 0.005); this.dust.emitParticleAt(k.x, k.y, 6); }
+    } else if (k.state === 'ground') {
+      k.t -= dt;
+      if (touch()) { this.die('monster', 'krojac'); return; }
+      if (visible && Math.abs(dx) < 150 && Math.abs(this.feet(p) - k.y) < 50 && this.kLOS(k)) { k.state = 'lunge'; k.t = 1.1; k.dir = Math.sign(dx) || 1; SFX.screech(); }
+      else if (k.t <= 0) k.state = 'climb';
+    } else if (k.state === 'lunge') {
+      k.t -= dt;
+      const nx = k.x + k.dir * 175 * dt;
+      if (this.lutkaGround(nx + k.dir * 10, k.y)) k.x = nx;
+      if (touch()) { this.die('monster', 'krojac'); return; }
+      if (k.t <= 0) { k.state = 'ground'; k.t = 0.8; }
+    } else if (k.state === 'climb') {
+      k.y -= 130 * dt;
+      if (k.y - 100 <= k.cy) { k.y = k.cy; k.state = 'patrol'; k.pauseT = 2.5; k.x = Phaser.Math.Clamp(k.x, k.x1, k.x2); }
+    }
+    this.drawKrojac(k, t);
+  }
+
+  drawKrojac(k, t) {
+    let fr;
+    if (k.state === 'drop') fr = 'drop';
+    else if (k.state === 'climb') fr = Math.floor(t * 8) % 2 ? 'crawl0' : 'crawl2';
+    else if (k.state === 'lunge') fr = 'crawl' + (Math.floor(t * 14) % 4);
+    else if (k.state === 'ground' || k.state === 'listen' || k.state === 'aim') fr = 'stand';
+    else if (k.c1 && k.state === 'cameo') fr = 'stand';
+    else fr = 'crawl' + (Math.floor(t * (k.state === 'hunt' || k.state === 'leave' ? 14 : 6)) % 4);
+    const inverted = this.kInv(k);
+    k.s.setFrame(fr).setFlipX(k.dir < 0).setFlipY(inverted).setOrigin(0.5, inverted ? 0 : 1).setPosition(k.x + (k.state === 'aim' ? Math.sin(t * 50) : 0), k.y);
+    const hy = inverted ? k.y + 68 : k.y - 68;
+    k.eyes.setPosition(k.x + k.dir * 2, hy).setFlipY(inverted).setAlpha(k.state === 'aim' ? 0.6 + Math.random() * 0.4 : 0.85);
+    // svileni konac dok se spušta ili penje
+    const g = this.kThreadG;
+    if (k.state === 'drop' || k.state === 'climb' || k.state === 'ground' || k.state === 'aim') {
+      g.lineStyle(1, 0xe8e0c8, 0.7); g.beginPath(); g.moveTo(k.x, k.cy); g.lineTo(k.x, k.state === 'aim' ? (k.gy || k.cy + 300) : inverted ? k.y : k.y - 100); g.strokePath();
+    }
+  }
+
+  drawCables() {
+    const g = this.add.graphics().setDepth(3);
+    (this.L.krojaci || []).forEach(k => {
+      if (!k.cable) return;
+      g.lineStyle(1.6, 0x0c0a10, 1);
+      g.beginPath();
+      for (let x = k.x1 - 60; x <= k.x2 + 60; x += 120) { g.moveTo(x, k.cy - 2); g.lineTo(x + 60, k.cy + 2); g.lineTo(x + 120, k.cy - 2); }
+      g.strokePath();
+    });
+  }
+
+  // golemi Krojač kao potjera na kraju zone
+  drawKrojacChase(x, y, t) {
+    const g = this.wallG, v = this.cameras.main.worldView;
+    if (x - 90 > v.x - 100) { g.fillStyle(0x000000, 0.96); g.fillRect(v.x - 100, v.y - 40, x - 90 - (v.x - 100), v.height + 80); }
+    for (let i = 0; i < 4; i++) { g.fillStyle(0x000000, 0.7 - i * 0.17); g.fillRect(x - 90 + i * 8, v.y - 40, 8, v.height + 80); }
+    if (!this.chaseK) {
+      this.chaseK = this.add.sprite(x, y, 'krojac', 'crawl0').setOrigin(0.5, 1).setScale(1.5 / RES).setDepth(55);
+      this.chaseE = this.add.image(x, y, 'oci_krojac').setScale(1.5 / RES).setDepth(60).setBlendMode(Phaser.BlendModes.ADD);
+    }
+    this.chaseK.setFrame('crawl' + (Math.floor(t * 14) % 4)).setPosition(x - 30, y);
+    this.chaseE.setPosition(x - 27, y - 102).setAlpha(Math.sin(t * 9) > 0.9 ? 0.2 : 1);
+    if (Math.floor(t * 3) !== this.chaseSnipT) { this.chaseSnipT = Math.floor(t * 3); SFX.snip(0.18); }
+  }
+
   // ---------------- golema paukica (potjera) ----------------
   drawGiantSpider(x, y, t) {
     const g = this.wallG, v = this.cameras.main.worldView;
@@ -1080,6 +1375,8 @@ class GameScene extends Phaser.Scene {
     this.updateSpiders(dt);
     this.updateIcicles(dt);
     this.wisps.forEach(w => this.updateWisp(w, dt));
+    this.updateThreads(dt); this.updateNeedles(dt); this.updateLutke(dt);
+    this.kThreadG.clear(); this.krojaci.forEach(k => this.updateKrojac(k, dt));
     this.huks.forEach(h => h.boss ? this.updateBoss(h, dt) : this.updateHuk(h, dt));
     this.updateWind(dt);
     this.updateWall(dt);
@@ -1098,7 +1395,7 @@ class GameScene extends Phaser.Scene {
     const ground = b.blocked.down || b.touching.down;
     const left = Controls.left || K.A.isDown;
     const right = Controls.right || K.D.isDown;
-    const jumpP = Controls.take('jump') | JD(K.W) | JD(K.I) | JD(K.SPACE);
+    let jumpP = Controls.take('jump') | JD(K.W) | JD(K.I) | JD(K.SPACE);
     const jumpH = Controls.jumpHeld || K.W.isDown || K.I.isDown || K.SPACE.isDown;
     const atkP = Controls.take('attack') | JD(K.J);
     const flashP = Controls.take('flash') | JD(K.K);
@@ -1183,11 +1480,29 @@ class GameScene extends Phaser.Scene {
     let target = dir * (st.inMud ? 40 : wet ? 66 : (sneak && ground) ? 58 : 118) * (Dev.is('fast') ? 2.5 : 1);
     const wf = this.windAt(p.x, p.y);
     if (wf && st.lock <= 0) target += ground ? wf * 0.3 : wf;
+    if (st.wallJumpT > 0) { st.wallJumpT -= dt; target = st.wjDir * 150; }
     if (st.lock <= 0) b.setVelocityX(Phaser.Math.Linear(b.velocity.x, target, Math.min(1, dt * (onIce ? 1.6 : ground ? 16 : 12))));
     if (dir !== 0 && st.atkT <= 0) st.face = dir;
     p.setFlipX(st.face < 0);
 
     // skok: coyote time + buffer
+    // hvatanje za zid i odraz (Grad)
+    st.cling = 0;
+    if (this.L.cling && !ground && !st.inMud && !wet && st.lock <= 0) {
+      const side = (b.blocked.left && dir < 0) ? -1 : (b.blocked.right && dir > 0) ? 1 : 0;
+      if (side && b.velocity.y > -60) { st.clingSide = side; st.clingT = 0.12; }
+      else st.clingT = Math.max(0, (st.clingT || 0) - dt);
+      if (st.clingT > 0) {
+        st.cling = st.clingSide;
+        if (side && b.velocity.y > 45) b.setVelocityY(45);
+        st.slideT = (st.slideT || 0) - dt;
+        if (side && b.velocity.y > 10 && st.slideT <= 0) { st.slideT = 0.12; this.dust.emitParticleAt(p.x + side * 6, p.y, 1); }
+        if (jumpP) {
+          b.setVelocityY(-330); st.wallJumpT = 0.16; st.wjDir = -st.clingSide; st.clingT = 0; st.cling = 0;
+          st.jumping = true; st.buffer = 0; jumpP = false; SFX.jump(); this.noise(p.x, p.y, 90);
+        }
+      }
+    } else st.clingT = 0;
     st.coyote = (ground || st.inMud) ? 0.1 : Math.max(0, st.coyote - dt);
     st.buffer = jumpP ? 0.13 : Math.max(0, st.buffer - dt);
     if (st.buffer > 0 && st.coyote > 0) {
@@ -1244,6 +1559,7 @@ class GameScene extends Phaser.Scene {
       this.spiders.forEach(sp => { if (sp.alive && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(sp.x - 8, sp.y - 8, 16, 16))) this.hitSpider(sp); });
       this.webs.forEach(w => { if (!w.cut && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(w.x * TILE + 2, w.y * TILE + 2, TILE - 4, TILE - 4))) this.cutWeb(w); });
       this.wisps.forEach(w => { if (w.state === 'live' && hit.contains(w.x, w.y)) this.popWisp(w, false); });
+      this.konci.forEach(th => { if (!th.cut && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(th.x - 22, th.y - 12, 44, 10))) { this.cutThread(th); this.taken.add(th.id); } });
       this.huks.forEach(h => { if (h.boss && h.state === 'dazed' && Phaser.Geom.Intersects.RectangleToRectangle(hit, new Phaser.Geom.Rectangle(h.x - 22, h.y - 30, 44, 32))) this.hitBoss(h); });
       this.noise(p.x, p.y, 170);
     }
@@ -1255,6 +1571,7 @@ class GameScene extends Phaser.Scene {
     // animacija
     let anim;
     if (st.atkT > 0) { p.anims.stop(); p.setFrame('attack'); }
+    else if (st.cling) { p.anims.stop(); p.setFrame('fall'); p.setFlipX(st.cling > 0); }
     else if (st.gliding) { p.anims.stop(); p.setFrame(Math.floor(this.time.now / 130) % 2 ? 'fly1' : 'fly0'); }
     else if (st.inMud) anim = Math.abs(b.velocity.x) > 20 ? 'hero-run' : 'hero-idle';
     else if (!ground) { p.anims.stop(); p.setFrame(b.velocity.y < 0 ? 'jump' : 'fall'); }
@@ -1266,6 +1583,7 @@ class GameScene extends Phaser.Scene {
 
   noise(x, y, r, hukR = r * 1.5) {
     this.huks.forEach(h => this.hukHear(h, x, y, hukR));
+    this.krojaci.forEach(k => this.kHear(k, x, y, r * 1.3));
     this.bats.forEach(bt => { if (bt.alive && Math.hypot(bt.x - x, bt.y - y) < r * 0.6) this.wakeBat(bt); });
     this.monsters.forEach(m => {
       if (!m.active || this.st.hidden) return;
@@ -1567,7 +1885,8 @@ class GameScene extends Phaser.Scene {
 
   wakeTheSleeper(keyId) {
     this.huks.filter(h => h.dormant === keyId).forEach(h => this.time.delayedCall(900, () => this.wakeHuk(h)));
-    if (this.L.darkWall && this.L.darkWall.key === keyId) this.time.delayedCall(700, () => { this.ui.toast('Tama se pomaknula…', 2200); this.startWall(this.player.x - 300, 1.6); });
+    this.krojaci.filter(k => k.dormant === keyId && !k.alive).forEach(k => this.time.delayedCall(900, () => this.wakeKrojac(k)));
+    if (this.L.darkWall && this.L.darkWall.key === keyId) this.time.delayedCall(700, () => { this.ui.toast(this.L.darkWall.toast || 'Tama se pomaknula…', 2200); this.startWall(this.player.x - 300, 1.6); });
     const lo = this.L.lightsOutKey === keyId;
     if (lo) this.time.delayedCall(500, () => { this.applyLightsOut(false); this.ui.toast('Sve su se svijeće ugasile…', 2200); });
     const ms = this.monsters.filter(x => x.dormant === keyId && !x.spent);
@@ -1607,6 +1926,7 @@ class GameScene extends Phaser.Scene {
       });
     }
     if (this.mudG) this.drawMud(t, v);
+    this.drawThreads(t);
     if (this.forest) this.items.forEach(it => { if (!it.done && it.type === 'battery') it.s.setAlpha(0.6 + Math.sin(t * 6 + it.x) * 0.4); });
     // junak sakriven — oči u ormaru trepću
     if (this.st.hidden) this.peek.setAlpha(Math.sin(t * 1.7) > 0.93 ? 0 : 0.8);
@@ -1651,6 +1971,10 @@ class GameScene extends Phaser.Scene {
     this.items.forEach(it => { if (!it.done && it.type === 'key') L(it.x, it.baseY, 26, 0.7); });
     if (!this.lightsOff) this.mushGlows.forEach(m => L(m.x, m.y, 18, 0.45));
     if (this.moon) L(v.x + v.width * 0.74, v.y + v.height * 0.2, 46, 0.85);
+    const tt = this.time.now / 1000;
+    this.lamps.forEach(l => { if (l.broken && Math.sin(tt * 13 + l.flick) * Math.sin(tt * 3.1 + l.flick) > 0.3) { l.g.setAlpha(0.05); return; } l.g.setAlpha(0.55); L(l.x, l.y - 60, 70, 0.85); L(l.x, l.y - 18, 46, 0.6); });
+    this.lutke.forEach(l => L(l.x, l.y - 24, 22, 0.22));
+    this.krojaci.forEach(k => { if (k.alive) L(k.x, k.y + (this.kInv(k) ? 50 : -50), k.state === 'cameo' ? 120 : 48, k.state === 'cameo' ? 0.8 : 0.3); });
     if (this.forest) this.items.forEach(it => { if (!it.done && it.type === 'battery') L(it.x, it.baseY, 22, 0.55); });
     this.wisps.forEach(w => { if (w.state === 'live') L(w.x, w.y, 34, 0.8); });
     this.huks.forEach(h => { if (h.alive) L(h.x, h.y - 38 * h.hs, h.spot ? 110 : 46, h.spot ? 0.8 : 0.32); });
@@ -1670,6 +1994,8 @@ class GameScene extends Phaser.Scene {
       const pan = Math.random() * 2 - 1;
       if (this.T.amb === 'crickets') { SFX.cricket(pan); if (Math.random() < 0.08) SFX.hoot(); }
       else if (this.T.amb === 'frogs') { Math.random() < 0.6 ? SFX.frog(pan) : SFX.cricket(pan); }
+      else if (this.T.amb === 'city') { Math.random() < 0.3 ? SFX.distant() : Math.random() < 0.5 ? SFX.drip(pan) : SFX.creak(); }
+      else if (this.T.amb === 'factory') { Math.random() < 0.6 ? SFX.clank() : SFX.drip(pan); }
       else if (this.T.amb === 'creak') { Math.random() < 0.5 ? SFX.chitter(0.05, pan) : SFX.creak(); }
       else if (this.T.id === 'kosturnica' && Math.random() < 0.25) SFX.bell();
       else if (this.T.id === 'gnijezdo' && Math.random() < 0.45) SFX.heart(0.14);

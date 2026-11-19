@@ -338,8 +338,8 @@ class UIScene extends Phaser.Scene {
       } else if (page === 'zones') {
         ov.c.add(this.add.text(w / 2, h * 0.14, 'DEV · skok na zonu', { fontFamily: FONT, fontSize: Math.round(22 * u) + 'px', color: '#ffd25a' }).setOrigin(0.5));
         for (let i = 0; i < Level.count; i++) {
-          const col = i % 4, row = Math.floor(i / 4), cw = Math.min(170 * u, (w - 30 * u) / 4);
-          btn(w / 2 + (col - 1.5) * cw, h * 0.36 + row * 64 * u, (cw - 10 * u) / u, 50, `${i + 1}. ${THEMES[Level.build(i).theme].name}`, 'zone:' + i, 13);
+          const col = i % 6, row = Math.floor(i / 6), cw = Math.min(150 * u, (w - 30 * u) / 6);
+          btn(w / 2 + (col - 2.5) * cw, h * 0.3 + row * 54 * u, (cw - 8 * u) / u, 44, `${i + 1}. ${THEMES[Level.build(i).theme].name}`, 'zone:' + i, 11);
         }
         btn(w / 2, h * 0.8, 200, 40, 'Natrag', 'back', 16);
       } else {
