@@ -495,14 +495,23 @@ class SoonScene extends TransitionScene {
     const hg = this.add.image(huk.x + 1.6 * u, huk.y - 38 * 1.6 * u, 'huk_glava', 'front').setScale(1.6 * u / RES).setTint(0x000000).setAlpha(0);
     const ey = this.add.image(hg.x, hg.y, 'oci_huk').setScale(1.6 * u / RES).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
     huk.setOrigin(0.5, 0.5);
-    this.tweens.add({ targets: [huk, hg], alpha: 1, duration: 2500, delay: 600 });
-    this.tweens.add({ targets: ey, alpha: 1, duration: 300, delay: 3200, onStart: () => SFX.hoot() });
+    const done = !!(data && data.done);
+    if (!done) {
+      this.tweens.add({ targets: [huk, hg], alpha: 1, duration: 2500, delay: 600 });
+      this.tweens.add({ targets: ey, alpha: 1, duration: 300, delay: 3200, onStart: () => SFX.hoot() });
+    } else {
+      // krijesnice se dižu prema mjesecu
+      for (let i = 0; i < 40; i++) {
+        const f = this.add.image(Math.random() * w, h + Math.random() * h * 0.4, 'dot').setTint(0xd8ff7a).setBlendMode(Phaser.BlendModes.ADD).setScale(0.6 + Math.random());
+        this.tweens.add({ targets: f, y: h * (0.1 + Math.random() * 0.5), x: f.x + (Math.random() - 0.5) * 120, alpha: { from: 1, to: 0 }, duration: 5000 + Math.random() * 4000, delay: Math.random() * 3000, repeat: -1 });
+      }
+    }
     const shade = this.add.rectangle(0, 0, w, h, 0x000000, 0.35).setOrigin(0);
     const W = Level.worlds[this.world];
     const items = [];
     items.push(this.add.text(w / 2, h * 0.16, `SVIJET ${this.world + 1}`, { fontFamily: FONT, fontSize: Math.round(16 * u) + 'px', color: '#bcd4ff', letterSpacing: 6 * u }).setOrigin(0.5));
     items.push(this.add.text(w / 2, h * 0.16 + 38 * u, W.name, { fontFamily: FONT, fontSize: Math.round(40 * u) + 'px', color: '#f3f0dc', stroke: '#000', strokeThickness: 5 * u }).setOrigin(0.5));
-    items.push(this.add.text(w / 2, h * 0.16 + 78 * u, 'Nastavlja se… Huk te još čeka.', { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(16 * u) + 'px', color: '#bcd4ff' }).setOrigin(0.5));
+    items.push(this.add.text(w / 2, h * 0.16 + 78 * u, done ? 'Huk je pao. Šuma je tiha.\nA iza šume — svjetla Grada. (uskoro)' : 'Nastavlja se… Huk te još čeka.', { fontFamily: FONT, fontStyle: 'italic', fontSize: Math.round(16 * u) + 'px', color: '#bcd4ff' }).setOrigin(0.5).setAlign('center'));
     this.btns = [];
     const r = this.add.rectangle(w / 2, h * 0.84, 240 * u, 44 * u, 0x000000, 0.4).setStrokeStyle(2 * u, 0xf3f0dc, 0.6);
     const t = this.add.text(w / 2, h * 0.84, 'Izbornik', { fontFamily: FONT, fontSize: Math.round(19 * u) + 'px', color: '#f3f0dc' }).setOrigin(0.5);

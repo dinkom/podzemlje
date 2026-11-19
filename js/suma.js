@@ -32,7 +32,8 @@
 
   // ================= PLOČICE I UKRASI =================
   const leafCol = { rub: ['#3f7a3a', '#5ea85a'], mocvara: ['#3e5a2e', '#5a7a3a'], paukova: ['#5a5868', '#8a889a'] };
-  const common = (id) => ({
+  // key = id teme, id = izgled (rub/mocvara/paukova), pal = boje neba i drveća
+  const common = (key, id = key, pal = {}) => ({
     surfaceTop(c, R, T) {
       if (id === 'rub') {
         c.fillStyle = '#2f5f30'; c.fillRect(0, 0, 24, 4.5);
@@ -58,21 +59,21 @@
       // korijenje u zemlji
       if (R() < 0.35) { c.strokeStyle = 'rgba(90,64,40,0.6)'; c.lineWidth = 0.9; c.beginPath(); const y = 6 + R() * 14; c.moveTo(0, y); c.bezierCurveTo(8, y + 4, 14, y - 3, 24, y + 2); c.stroke(); }
     },
-    spikeCols: id === 'paukova' ? ['#d8d6e6', '#5a5468'] : ['#6a5236', '#2e2214'],
+    spikeCols: pal.spike || (id === 'paukova' ? ['#d8d6e6', '#5a5468'] : ['#6a5236', '#2e2214']),
     plank(c, kind, T, OUT) {
       // grana s lišćem umjesto daske
       const [bark, dark, leaf] = T.plank;
       c.fillStyle = bark; c.beginPath(); c.moveTo(kind === 0 ? 2 : 0, 1.5); c.lineTo(kind === 2 ? 22 : 24, 1); c.lineTo(kind === 2 ? 22 : 24, 6); c.lineTo(kind === 0 ? 2 : 0, 6.5); c.closePath(); c.fill();
       c.strokeStyle = OUT; c.lineWidth = 0.8; c.stroke();
       c.strokeStyle = dark; c.lineWidth = 0.5; c.beginPath(); c.moveTo(3, 3.5); c.lineTo(21, 3); c.moveTo(6, 5); c.lineTo(14, 4.8); c.stroke();
-      const R = Tiles.rng(kind * 17 + T.id.length);
+      const R = Tiles.rng(kind * 17 + key.length);
       for (let i = 0; i < 4; i++) {
         const x = 2 + R() * 20;
-        c.fillStyle = i % 2 ? leaf : leafCol[T.id][1];
+        c.fillStyle = i % 2 ? leaf : leafCol[id][1];
         c.beginPath(); c.ellipse(x, 0.5 - R() * 1.5, 2.6, 1.4, (R() - 0.5) * 1.2, 0, Math.PI * 2); c.fill();
         c.strokeStyle = 'rgba(0,0,0,0.4)'; c.lineWidth = 0.3; c.stroke();
       }
-      if (T.id === 'paukova') { c.strokeStyle = 'rgba(235,235,250,0.55)'; c.lineWidth = 0.4; c.beginPath(); c.moveTo(0, 6); c.quadraticCurveTo(12, 14, 24, 6); c.stroke(); }
+      if (id === 'paukova') { c.strokeStyle = 'rgba(235,235,250,0.55)'; c.lineWidth = 0.4; c.beginPath(); c.moveTo(0, 6); c.quadraticCurveTo(12, 14, 24, 6); c.stroke(); }
       if (kind !== 1) { c.strokeStyle = bark; c.lineWidth = 2.6; c.beginPath(); c.moveTo(kind === 0 ? 2 : 22, 4); c.lineTo(kind === 0 ? -1 : 25, 2); c.stroke(); }
     },
     deco(c, i, T, h) {
@@ -81,7 +82,7 @@
       const flower = (x, h, col) => { c.strokeStyle = '#4c7a48'; c.lineWidth = 0.7; c.beginPath(); c.moveTo(x, 24); c.lineTo(x, 24 - h); c.stroke(); for (let k = 0; k < 5; k++) { const a = k * 1.256; ell(x + Math.cos(a) * 1.4, 24 - h + Math.sin(a) * 1.4, 1.1, 1.1, col, 0); } ell(x, 24 - h, 0.7, 0.7, '#fff6c0', 0); };
       const hangLeaves = (col) => { for (let k = 0; k < 4; k++) { const x = 3 + k * 5 + R() * 2; c.strokeStyle = '#3a5a2e'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 4 + R() * 6); c.stroke(); ell(x, 6 + R() * 6, 2.2, 1.3, col, 0.3); } };
       const vines = (col) => { for (let k = 0; k < 3; k++) { c.strokeStyle = col; c.lineWidth = 1; const x = 5 + k * 6; c.beginPath(); c.moveTo(x, 0); c.bezierCurveTo(x + 3, 7, x - 3, 12, x + 1, 16 + R() * 7); c.stroke(); } };
-      if (T.id === 'rub') {
+      if (id === 'rub') {
         switch (i) {
           case 0: flower(8, 6, '#9fd8ff'); flower(14, 9, '#bfe6ff'); flower(18, 5, '#9fd8ff'); break;
           case 1: fern(12, '#3f7a3a'); [[7, 14], [15, 11], [12, 18]].forEach(([x, y]) => { c.fillStyle = '#efff9a'; c.beginPath(); c.arc(x, y, 0.8, 0, Math.PI * 2); c.fill(); }); break;
@@ -96,7 +97,7 @@
           case 10: cobweb(); break;
           case 11: c.strokeStyle = '#4a3a28'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(12, 0); c.lineTo(12, 8); c.stroke(); ell(12, 10, 2, 2.6, '#3a4a5a', 0.5); break;
         }
-      } else if (T.id === 'mocvara') {
+      } else if (id === 'mocvara') {
         switch (i) {
           case 0: for (let k = 0; k < 4; k++) { const x = 5 + k * 4.5, hh = 10 + R() * 8; c.strokeStyle = '#4a6a3a'; c.lineWidth = 1; c.beginPath(); c.moveTo(x, 24); c.lineTo(x + 1, 24 - hh); c.stroke(); ell(x + 1, 24 - hh - 1, 0.9, 0.9, '#c8ffe0', 0); } break;
           case 1: ell(12, 22.5, 6, 1.4, '#2a5a4a', 0.5); [-1, 1].forEach(s => { c.beginPath(); c.ellipse(12 + s * 2, 20.5, 2, 3, s * 0.5, 0, Math.PI * 2); c.fillStyle = '#d8fff0'; c.fill(); }); ell(12, 19.5, 1.2, 1.2, '#9ff0d0', 0); break;
@@ -127,14 +128,14 @@
       }
     },
     bgFar(c, R, h) {
-      const sky = { rub: ['#07102a', '#16284e', '#24365a'], mocvara: ['#0a1410', '#1a2a24', '#2a3a30'], paukova: ['#0a0812', '#1a1628', '#2a2438'] }[id];
+      const sky = pal.sky || { rub: ['#07102a', '#16284e', '#24365a'], mocvara: ['#0a1410', '#1a2a24', '#2a3a30'], paukova: ['#0a0812', '#1a1628', '#2a2438'] }[id];
       const g = c.createLinearGradient(0, 0, 0, 280); g.addColorStop(0, sky[0]); g.addColorStop(0.65, sky[1]); g.addColorStop(1, sky[2]);
       c.fillStyle = g; c.fillRect(0, 0, 600, 280);
       const stars = []; for (let i = 0; i < 70; i++) stars.push([R() * 600, R() * 170, R()]);
       h.wrap(() => {
         stars.forEach(([x, y, a]) => { c.fillStyle = `rgba(255,255,255,${0.25 + a * 0.6})`; c.fillRect(x, y, a > 0.85 ? 1.4 : 0.8, a > 0.85 ? 1.4 : 0.8); });
         // daleki red drveća
-        c.fillStyle = id === 'mocvara' ? '#13201a' : id === 'paukova' ? '#16121e' : '#0f1a32';
+        c.fillStyle = pal.far || (id === 'mocvara' ? '#13201a' : id === 'paukova' ? '#16121e' : '#0f1a32');
         c.beginPath(); c.moveTo(0, 280);
         for (let x = 0; x <= 600; x += 14) { const t = 200 + Math.sin(x * 0.05) * 10 + ((x * 7) % 23); c.lineTo(x, t + 12); c.lineTo(x + 7, t - 6 - ((x * 13) % 17)); }
         c.lineTo(600, 280); c.closePath(); c.fill();
@@ -143,7 +144,7 @@
       });
     },
     bgMid(c, R, h) {
-      const trunk = id === 'mocvara' ? '#162016' : id === 'paukova' ? '#1a1620' : '#121c2e';
+      const trunk = pal.trunk || (id === 'mocvara' ? '#162016' : id === 'paukova' ? '#1a1620' : '#121c2e');
       const trees = []; for (let i = 0; i < 7; i++) trees.push({ x: R() * 800, w: 10 + R() * 16, lean: (R() - 0.5) * 20 });
       h.wrap(() => {
         trees.forEach(t => {
@@ -543,4 +544,5 @@
   }
 
   Level.addZones(1, [rubSume, mocvara, paukova]);
+  window.Suma = { common, course, trunkOf };
 })();

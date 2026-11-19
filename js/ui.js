@@ -249,6 +249,15 @@ class UIScene extends Phaser.Scene {
     this.tweens.add({ targets: [a, b], alpha: 1, duration: 900, delay: 300, yoyo: true, hold: 1800, onComplete: () => { a.destroy(); b.destroy(); } });
   }
 
+  // Hukovo zdravlje u borbi
+  bossBar(hp, max = 3) {
+    const w = this.scale.width, u = this.scale.height / 360;
+    if (!this.bossT) this.bossT = this.add.text(0, 0, '', { fontFamily: FONT, fontStyle: 'bold', color: '#ffd23a', stroke: '#000', strokeThickness: 5 }).setOrigin(0.5).setDepth(50);
+    this.bossT.setPosition(w / 2, 22 * u).setFontSize(Math.round(18 * u)).setVisible(hp > 0);
+    this.bossT.setText('HUK  ' + '◆'.repeat(hp) + '◇'.repeat(Math.max(0, max - hp)));
+    this.tweens.add({ targets: this.bossT, scale: { from: 1.35, to: 1 }, duration: 300 });
+  }
+
   toast(msg, ms = 1600) {
     const t = this.toastText;
     this.tweens.killTweensOf(t);
