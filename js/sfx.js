@@ -38,8 +38,11 @@ const SFX = (() => {
     g.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
   }
 
+  // zaštita: neispravan broj (NaN) u Web Audio baca grešku — takav zvuk samo preskoči
+  const fin = (...v) => v.every(x => x === null || Number.isFinite(x));
+
   function tone({ type = 'sine', f = 440, f2 = null, a = 0.005, d = 0.2, vol = 0.2, pan = 0, delay = 0 }) {
-    if (!ok()) return;
+    if (!ok() || !fin(f, f2, a, d, vol, pan, delay)) return;
     const t = now() + delay;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
@@ -52,7 +55,7 @@ const SFX = (() => {
   }
 
   function noise({ a = 0.005, d = 0.15, vol = 0.2, type = 'lowpass', f = 1200, f2 = null, q = 0.8, pan = 0, delay = 0 }) {
-    if (!ok()) return;
+    if (!ok() || !fin(f, f2, a, d, vol, q, pan, delay)) return;
     const t = now() + delay;
     const s = ctx.createBufferSource();
     s.buffer = noiseBuf;
@@ -245,7 +248,7 @@ const SFX = (() => {
     lightsOut() { noise({ a: 0.05, d: 1.2, vol: 0.25, type: 'lowpass', f: 900, f2: 100 }); tone({ type: 'sine', f: 220, f2: 55, a: 0.02, d: 1.6, vol: 0.2 }); },
     tension(v) { // 0..1 — pojačava dron kad je čudovište blizu
       if (!droneNodes || !ok()) return;
-      droneNodes.g.gain.setTargetAtTime(0.028 + v * 0.055, now(), 0.4);
+      if (Number.isFinite(v)) droneNodes.g.gain.setTargetAtTime(0.028 + v * 0.055, now(), 0.4);
     },
     step(vol = 0.1) { noise({ d: 0.07, vol, f: 1000, f2: 300 }); },
     land() { noise({ d: 0.16, vol: 0.26, f: 700, f2: 120 }); tone({ type: 'sine', f: 110, f2: 55, d: 0.12, vol: 0.12 }); },
@@ -262,7 +265,7 @@ const SFX = (() => {
     door() { tone({ type: 'sawtooth', f: 80, f2: 50, a: 0.1, d: 1.2, vol: 0.12 }); noise({ a: 0.05, d: 1.0, vol: 0.1, f: 300, f2: 80 }); },
     drip(pan) { tone({ type: 'sine', f: 1400 + Math.random() * 900, f2: 500, d: 0.12, vol: 0.05, pan }); tone({ type: 'sine', f: 1100, f2: 400, d: 0.1, vol: 0.02, pan: -pan, delay: 0.18 }); },
     heart(vol = 0.3) { tone({ type: 'sine', f: 62, f2: 40, d: 0.14, vol }); tone({ type: 'sine', f: 58, f2: 38, d: 0.16, vol: vol * 0.8, delay: 0.17 }); },
-    stomp(vol, pan) { if (vol < 0.01) return; tone({ type: 'sine', f: 70, f2: 35, d: 0.18, vol: vol * 0.5, pan }); noise({ d: 0.1, vol: vol * 0.25, f: 400, f2: 90, pan }); },
+    stomp(vol = 0.45, pan = 0) { if (!(vol >= 0.01)) return; tone({ type: 'sine', f: 70, f2: 35, d: 0.18, vol: vol * 0.5, pan }); noise({ d: 0.1, vol: vol * 0.25, f: 400, f2: 90, pan }); },
     sting() {
       [233, 247, 349].forEach((f, i) => tone({ type: 'sawtooth', f, f2: f * 0.97, a: 0.02, d: 0.9, vol: 0.06, delay: i * 0.02 }));
       noise({ a: 0.01, d: 0.6, vol: 0.12, type: 'bandpass', f: 2500, f2: 800, q: 3 });
