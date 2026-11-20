@@ -68,7 +68,7 @@ const SFX = (() => {
 
   function startDrone() {
     if (droneNodes) return;
-    const g = ctx.createGain(); g.gain.value = 0.05;
+    const g = ctx.createGain(); g.gain.value = 0.028;
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260;
     const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 43.6;
     const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = 44.1;
@@ -79,7 +79,7 @@ const SFX = (() => {
     // vjetar
     const ns = ctx.createBufferSource(); ns.buffer = noiseBuf; ns.loop = true;
     const nf = ctx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 400; nf.Q.value = 0.6;
-    const ng = ctx.createGain(); ng.gain.value = 0.018;
+    const ng = ctx.createGain(); ng.gain.value = 0.01;
     const lfo2 = ctx.createOscillator(); lfo2.frequency.value = 0.11;
     const lfo2G = ctx.createGain(); lfo2G.gain.value = 220;
     lfo2.connect(lfo2G); lfo2G.connect(nf.frequency);
@@ -226,7 +226,7 @@ const SFX = (() => {
       N.o3.frequency.setTargetAtTime(d.f3, t, 1.5);
       N.lp.frequency.setTargetAtTime(d.lp, t, 1.5);
       N.nf.frequency.setTargetAtTime(d.wind, t, 1.5);
-      N.ng.gain.setTargetAtTime(d.windG, t, 1.5);
+      N.ng.gain.setTargetAtTime(d.windG * 0.55, t, 1.5);
     },
     splash(vol = 0.16) { noise({ d: 0.18, vol, type: 'bandpass', f: 1400, f2: 500, q: 0.7 }); tone({ type: 'sine', f: 600 + Math.random() * 300, f2: 250, d: 0.08, vol: vol * 0.3 }); },
     batWake(pan = 0) { tone({ type: 'square', f: 3200, f2: 2400, d: 0.06, vol: 0.05, pan }); tone({ type: 'square', f: 3500, f2: 2600, d: 0.06, vol: 0.05, pan, delay: 0.09 }); noise({ d: 0.2, vol: 0.08, type: 'bandpass', f: 2500, q: 2, pan }); },
@@ -245,7 +245,7 @@ const SFX = (() => {
     lightsOut() { noise({ a: 0.05, d: 1.2, vol: 0.25, type: 'lowpass', f: 900, f2: 100 }); tone({ type: 'sine', f: 220, f2: 55, a: 0.02, d: 1.6, vol: 0.2 }); },
     tension(v) { // 0..1 — pojačava dron kad je čudovište blizu
       if (!droneNodes || !ok()) return;
-      droneNodes.g.gain.setTargetAtTime(0.05 + v * 0.07, now(), 0.4);
+      droneNodes.g.gain.setTargetAtTime(0.028 + v * 0.055, now(), 0.4);
     },
     step(vol = 0.1) { noise({ d: 0.07, vol, f: 1000, f2: 300 }); },
     land() { noise({ d: 0.16, vol: 0.26, f: 700, f2: 120 }); tone({ type: 'sine', f: 110, f2: 55, d: 0.12, vol: 0.12 }); },

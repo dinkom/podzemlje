@@ -21,7 +21,7 @@
       id: 'krosnje', name: 'Krošnje', surface: 'grass',
       rock: ['#3e3a44', '#2c2932', '#1f1d24'], plank: ['#6b5238', '#3e2e1f', '#5ea85a'],
       glow: [0xbfe6ff, 0xd8ff7a], dark: 'rgba(4,8,20,', darkA: 0.7, cam: '#0c1838',
-      drone: { f: 58.3, f3: 87.3, lp: 700, wind: 900, windG: 0.035 }, amb: 'crickets',
+      drone: { f: 46.2, f3: 69.3, lp: 360, wind: 480, windG: 0.02 }, amb: 'crickets',
     }),
     mrtva: base({
       id: 'mrtva', name: 'Mrtva šuma', surface: 'ash', moonTint: 0xff6a50, fog: true,
@@ -33,7 +33,7 @@
       id: 'hukovo', name: 'Hukovo gnijezdo', surface: 'ash', moonTint: 0xffe0a0,
       rock: ['#3a2e26', '#2a211b', '#1d1712'], plank: ['#5a4630', '#33271a', '#7a6a4a'],
       glow: [0xffd23a, 0xff8a3a], dark: 'rgba(6,4,8,', darkA: 0.82, cam: '#06040a',
-      drone: { f: 36.7, f3: 55, lp: 300, wind: 600, windG: 0.03 }, amb: 'creak',
+      drone: { f: 36.7, f3: 55, lp: 300, wind: 420, windG: 0.02 }, amb: 'creak',
     }),
   });
   Tiles.hook('korijenje', common('korijenje', 'rub', { sky: ['#120a1e', '#2a1830', '#3a2430'], far: '#1a1020', trunk: '#1e1416' }));

@@ -10,7 +10,7 @@
       surface: 'grass', extra: null,
       plank: ['#6b5238', '#3e2e1f', '#4f8a4a'],
       glow: [0x9fd8ff, 0xd8ff7a], dark: 'rgba(4,8,18,', darkA: 0.74, cam: '#0a1428',
-      drone: { f: 55, f3: 82.4, lp: 520, wind: 700, windG: 0.022 }, drip: [1.5, 3], amb: 'crickets', hideTex: 'grm',
+      drone: { f: 43.6, f3: 65.4, lp: 320, wind: 420, windG: 0.016 }, drip: [1.5, 3], amb: 'crickets', hideTex: 'grm',
     },
     mocvara: {
       id: 'mocvara', name: 'Močvara', forest: true, moon: true, fog: true,
