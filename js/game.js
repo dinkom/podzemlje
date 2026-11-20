@@ -65,6 +65,11 @@ class GameScene extends Phaser.Scene {
     const L = this.L = Level.build(this.levelIndex);
     Progress.unlock(this.levelIndex);
     const T = this.T = THEMES[L.theme];
+    // oslobodi slike drugih tema (štedi memoriju na mobitelu)
+    Object.keys(THEMES).forEach(id => {
+      if (id === T.id) return;
+      ['rocktiles_', 'planktiles_', 'decotiles_', 'spiketiles_', 'specialtiles_', 'crumble_', 'bgFar_', 'bgMid_'].forEach(pre => { if (this.textures.exists(pre + id)) this.textures.remove(pre + id); });
+    });
     Tiles.ensureTheme(this, T);
     SFX.setTheme(T.drone);
     this.lightsOff = false;
@@ -1807,7 +1812,19 @@ class GameScene extends Phaser.Scene {
   }
 
   // ---------------- glavna petlja ----------------
+  // zaštita: jedna greška ne smije zamrznuti cijelu igru (Phaser tada staje zauvijek)
   update(time, delta) {
+    try { this.step(time, delta); }
+    catch (e) {
+      console.error(e);
+      try { localStorage.setItem('nocnik-greska', new Date().toISOString() + ' zona ' + (this.levelIndex + 1) + ': ' + (e && e.stack || e).toString().slice(0, 600)); } catch (_) {}
+      this.errCount = (this.errCount || 0) + 1;
+      if (this.errCount === 1 && Dev.on && this.ui) this.ui.toast('GREŠKA: ' + (e && e.message), 4000);
+      if (this.errCount > 300 && !this.errRestart) { this.errRestart = true; this.scene.restart(); }
+    }
+  }
+
+  step(time, delta) {
     const dt = Math.min(delta, 50) / 1000;
     const st = this.st, p = this.player, K = this.keys;
     const JD = Phaser.Input.Keyboard.JustDown;

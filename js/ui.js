@@ -314,6 +314,7 @@ class UIScene extends Phaser.Scene {
   }
 
   openPause() {
+    try { const err = localStorage.getItem('nocnik-greska'); if (Dev.on && err) this.time.delayedCall(300, () => this.toast(err.slice(0, 160), 7000)); } catch (_) {}
     if (this.overlay || !this.scene.isActive('Game')) return;
     this.scene.pause('Game');
     const ov = this.makePanel(ov => {

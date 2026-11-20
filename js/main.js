@@ -567,6 +567,11 @@ const game = new Phaser.Game({
   render: { antialias: true, powerPreference: 'high-performance' },
   scene: [BootScene, TitleScene, GameScene, UIScene, EndScene, TransitionScene, SoonScene],
 });
+// ako mobitel izgubi grafički kontekst, igra bi se zamrznula — ponovno učitaj (nastavlja od zadnje lampe)
+game.events.once('ready', () => {
+  game.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); setTimeout(() => location.reload(), 400); }, false);
+});
+
 
 let resizeT = null;
 window.addEventListener('resize', () => {
