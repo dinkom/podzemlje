@@ -103,7 +103,7 @@ class TitleScene extends Phaser.Scene {
 
   build() {
     if (this.root) this.root.destroy(true);
-    const w = this.scale.width, h = this.scale.height, u = h / 360;
+    const w = this.scale.width, h = this.scale.height, u = Math.min(h / 360, w / 640);
     this.u = u;
     const c = this.root = this.add.container(0, 0);
     const bg = this.add.tileSprite(0, 0, w, h, 'bgFar_spilje').setOrigin(0).setTileScale(h / 560).setAlpha(0.55);
@@ -198,7 +198,7 @@ class EndScene extends Phaser.Scene {
   constructor() { super('End'); }
   create() {
     SFX.music(null);
-    const w = this.scale.width, h = this.scale.height, u = this.u = h / 360;
+    const w = this.scale.width, h = this.scale.height, u = this.u = Math.min(h / 360, w / 640);
     this.finished = false;
     this.cameras.main.setBackgroundColor('#05060a');
     this.makeTextures(w, h);
@@ -327,7 +327,7 @@ class TransitionScene extends Phaser.Scene {
   create(data) {
     this.world = data && data.world || 0;
     SFX.music('suma');
-    const w = this.scale.width, h = this.scale.height, u = this.u = h / 360;
+    const w = this.scale.width, h = this.scale.height, u = this.u = Math.min(h / 360, w / 640);
     this.finished = false; this.phase = 1;
     this.cameras.main.setBackgroundColor('#03050a');
     SFX.init();
@@ -492,7 +492,7 @@ class SoonScene extends TransitionScene {
   create(data) {
     SFX.music(null);
     this.world = data && data.world || 0;
-    const w = this.scale.width, h = this.scale.height, u = this.u = h / 360;
+    const w = this.scale.width, h = this.scale.height, u = this.u = Math.min(h / 360, w / 640);
     this.finished = true; this.phase = 2;
     SFX.init();
     this.makeSky(w, h);

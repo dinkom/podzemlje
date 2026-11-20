@@ -44,7 +44,7 @@ class UIScene extends Phaser.Scene {
 
   layout() {
     const w = this.scale.width, h = this.scale.height;
-    const u = this.u = h / 360;
+    const u = this.u = Math.min(h / 360, w / 640);
     const B = this.btn;
     const set = (b, x, y) => { b.x = x; b.y = y; b.R = b.r * u; };
     set(B.jump, w - 74 * u, h - 72 * u);
@@ -251,7 +251,7 @@ class UIScene extends Phaser.Scene {
 
   // Hukovo zdravlje u borbi
   bossBar(hp, max = 30, name = 'HUK') {
-    const w = this.scale.width, u = this.scale.height / 360;
+    const w = this.scale.width, u = Math.min(this.scale.height / 360, w / 640);
     if (!this.bossT) {
       this.bossT = this.add.text(0, 0, 'HUK', { fontFamily: FONT, fontStyle: 'bold', color: '#ffd23a', stroke: '#000', strokeThickness: 5 }).setOrigin(0.5).setDepth(50);
       this.bossG = this.add.graphics().setDepth(50);

@@ -253,7 +253,7 @@ class GameScene extends Phaser.Scene {
   layout() {
     const w = this.scale.width, h = this.scale.height;
     const cam = this.cameras.main;
-    let zoom = Dev.is('zoom') ? Math.min(w / this.worldW, h / this.worldH) : h / VIEW_H;
+    let zoom = Dev.is('zoom') ? Math.min(w / this.worldW, h / this.worldH) : Math.min(h / VIEW_H, w / 470);
     if (this.arena && !Dev.is('zoom')) zoom = Math.min(zoom, w / (this.arena.w + 40), h / (this.arena.h + 30));
     cam.setZoom(zoom);
     const vw = w / zoom, vh = h / zoom;
