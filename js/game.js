@@ -72,6 +72,7 @@ class GameScene extends Phaser.Scene {
     });
     Tiles.ensureTheme(this, T);
     SFX.setTheme(T.drone);
+    SFX.music(['podzemlje', 'suma', 'grad'][L.world] || null); SFX.musicLevel(0);
     this.lightsOff = false;
     const taken = new Set(this.save.taken);
     this.taken = new Set(this.save.taken);
@@ -980,7 +981,7 @@ class GameScene extends Phaser.Scene {
         break;
       case 'intro':
         h.t -= dt;
-        if (h.t < 1.2 && !h.i1) { h.i1 = true; SFX.screech(); cam.shake(600, 0.007); Buzz([150, 60, 250]); this.ui.bossBar(h.hp, h.maxHp); }
+        if (h.t < 1.2 && !h.i1) { h.i1 = true; SFX.music('boss_huk'); SFX.screech(); cam.shake(600, 0.007); Buzz([150, 60, 250]); this.ui.bossBar(h.hp, h.maxHp); }
         if (h.t <= 0) {
           this.arena = { w: B.x2 - B.x1, h: floor - B.top + 30, cx: (B.x1 + B.x2) / 2, cy: (B.top + floor) / 2 + 10 };
           this.layout();
@@ -1104,6 +1105,7 @@ class GameScene extends Phaser.Scene {
         if (h.t <= 0) {
           h.alive = false; [h.body, h.headS, h.eyes].forEach(o => o.destroy()); this.bossDark = false;
           this.arena = null; this.layout(); cam.startFollow(p, true, 0.12, 0.12); cam.setFollowOffset(0, 18);
+          SFX.music(null); this.time.delayedCall(4000, () => SFX.music('suma'));
           this.bossDefeated(); return;
         }
         break;
@@ -1124,7 +1126,7 @@ class GameScene extends Phaser.Scene {
     if (h.hp <= 0) { h.state = 'dying'; h.t = 2.6; SFX.scream(); this.feathers.forEach(f => f.s.destroy()); this.feathers = []; this.shocks = []; this.ui.toast('Huk pada…', 2200); return; }
     const ph = h.hp > 20 ? 0 : h.hp > 10 ? 1 : 2;
     if (ph !== h.phase) {
-      h.phase = ph; h.state = 'enrage'; h.t = 1.4; h.ang = 0;
+      h.phase = ph; h.state = 'enrage'; h.t = 1.4; h.ang = 0; SFX.musicLevel(ph);
       this.ui.toast(ph === 1 ? 'Huk je bijesan!' : 'Huk gasi mjesec…', 1800);
     }
   }
@@ -1308,7 +1310,7 @@ class GameScene extends Phaser.Scene {
         break;
       case 'intro':
         k.t -= dt;
-        if (k.t < 1.2 && !k.i1) { k.i1 = true; SFX.screech(); cam.shake(600, 0.007); Buzz([150, 60, 250]); this.ui.bossBar(k.hp, k.maxHp, 'KROJAČ'); }
+        if (k.t < 1.2 && !k.i1) { k.i1 = true; SFX.music('boss_krojac'); SFX.screech(); cam.shake(600, 0.007); Buzz([150, 60, 250]); this.ui.bossBar(k.hp, k.maxHp, 'KROJAČ'); }
         if (k.t <= 0) {
           this.arena = { w: B.x2 - B.x1, h: floor - B.top + 30, cx: (B.x1 + B.x2) / 2, cy: (B.top + floor) / 2 + 10 };
           this.layout(); cam.pan(this.arena.cx, this.arena.cy, 500, 'Sine.easeInOut', true);
@@ -1431,6 +1433,7 @@ class GameScene extends Phaser.Scene {
           k.alive = false; k.s.destroy(); k.eyes.destroy(); this.bossDark = false; this.kDarkT = null;
           this.lutke.forEach(l => { this.tweens.add({ targets: l.s, alpha: 0, duration: 800 }); l.minX = l.maxX = l.x; });
           this.arena = null; this.layout(); cam.startFollow(p, true, 0.12, 0.12); cam.setFollowOffset(0, 18);
+          SFX.music(null); this.time.delayedCall(4000, () => SFX.music('grad'));
           this.kbossDefeated(); return;
         }
         break;
@@ -1470,7 +1473,7 @@ class GameScene extends Phaser.Scene {
     if (k.hp <= 0) { k.state = 'dying'; k.t = 2.6; SFX.scream(); this.feathers.forEach(f => { f.s.destroy(); f.glow.destroy(); }); this.feathers = []; this.ui.toast('Krojač pada…', 2200); return; }
     const ph = k.hp > 24 ? 0 : k.hp > 12 ? 1 : 2;
     if (ph !== k.phase) {
-      k.phase = ph; k.state = 'enrage'; k.t = 1.4; k.ang = 0;
+      k.phase = ph; k.state = 'enrage'; k.t = 1.4; k.ang = 0; SFX.musicLevel(ph);
       this.ui.toast(ph === 1 ? 'Krojač zove svoje lutke!' : 'Krojač gasi svjetla…', 1800);
     }
   }

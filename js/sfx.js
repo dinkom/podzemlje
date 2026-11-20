@@ -1,6 +1,6 @@
 // Podzemlje — zvukovi sintetizirani u Web Audio (bez audio datoteka)
 const SFX = (() => {
-  let ctx = null, master = null, noiseBuf = null, droneNodes = null;
+  let ctx = null, master = null, noiseBuf = null, droneNodes = null, pendingMode;
   let enabled = true;
 
   function init() {
@@ -18,6 +18,7 @@ const SFX = (() => {
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     startDrone();
+    if (pendingMode !== undefined) { bus(); mus.want = pendingMode; }
   }
 
   const now = () => ctx.currentTime;
@@ -89,8 +90,132 @@ const SFX = (() => {
     droneNodes = { g, ng, o1, o2, o3, lp, nf, lfoG };
   }
 
+  // ================= GLAZBA (filmska, sintetizirana) =================
+  let mus = null;
+  const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);   // MIDI broj -> Hz
+  function impulse(sec) {
+    const n = Math.floor(ctx.sampleRate * sec), b = ctx.createBuffer(2, n, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2.6); }
+    return b;
+  }
+  function bus() {
+    if (mus) return mus;
+    const gain = ctx.createGain(); gain.gain.value = 0;
+    const dry = ctx.createGain(); dry.gain.value = 0.75;
+    const conv = ctx.createConvolver(); conv.buffer = impulse(3.4);
+    const wet = ctx.createGain(); wet.gain.value = 0.6;
+    gain.connect(dry); dry.connect(master); gain.connect(conv); conv.connect(wet); wet.connect(master);
+    mus = { gain, mode: null, want: null, timer: null, nextT: 0, step: 0, ev: 0, lvl: 0, chord: 0 };
+    mus.timer = setInterval(schedule, 90);
+    return mus;
+  }
+  // instrumenti
+  function voice(f, t, dur, { type = 'sine', vol = 0.05, a = 0.01, rel = 0.6, vib = 0, lp = 0, det = 0, pan = 0 } = {}) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t); if (det) o.detune.value = det;
+    if (vib) { const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = 5.2; lg.gain.value = f * vib; l.connect(lg); lg.connect(o.frequency); l.start(t); l.stop(t + dur + rel + 0.1); }
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + a);
+    g.gain.setValueAtTime(vol, t + Math.max(a, dur)); g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(a, dur) + rel);
+    let node = o;
+    if (lp) { const fl = ctx.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = lp; o.connect(fl); node = fl; }
+    node.connect(g);
+    if (ctx.createStereoPanner && pan) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p); p.connect(mus.gain); } else g.connect(mus.gain);
+    o.start(t); o.stop(t + Math.max(a, dur) + rel + 0.1);
+  }
+  const I = {
+    bell: (n, t, v = 0.05, pan = 0) => { const f = NOTE(n); voice(f, t, 0.02, { vol: v, a: 0.004, rel: 3.2, pan }); voice(f * 2.76, t, 0.01, { vol: v * 0.25, a: 0.003, rel: 1.2, pan }); voice(f * 5.4, t, 0.01, { vol: v * 0.08, a: 0.002, rel: 0.5, pan }); },
+    harp: (n, t, v = 0.05, pan = 0) => { const f = NOTE(n); voice(f, t, 0.01, { type: 'triangle', vol: v, a: 0.003, rel: 1.8, pan }); voice(f * 2, t, 0.01, { vol: v * 0.2, a: 0.003, rel: 0.6, pan }); },
+    flute: (n, t, d, v = 0.035) => { voice(NOTE(n), t, d, { vol: v, a: 0.35, rel: 1.0, vib: 0.006 }); },
+    strings: (n, t, d, v = 0.02, lp = 900) => { [-7, 7].forEach(dt => voice(NOTE(n), t, d, { type: 'sawtooth', vol: v, a: d * 0.4, rel: 1.6, lp, det: dt })); },
+    cello: (n, t, d, v = 0.03) => { voice(NOTE(n), t, d, { type: 'sawtooth', vol: v, a: d * 0.3, rel: 1.4, lp: 420, vib: 0.004 }); },
+    box: (n, t, v = 0.035, det = -12) => { const f = NOTE(n); voice(f, t, 0.01, { vol: v, a: 0.002, rel: 0.9, det }); voice(f * 3, t, 0.01, { type: 'triangle', vol: v * 0.2, a: 0.002, rel: 0.3, det }); },
+    piano: (n, t, v = 0.04) => { const f = NOTE(n); voice(f, t, 0.02, { type: 'triangle', vol: v, a: 0.004, rel: 2.2, det: -9 }); voice(f, t, 0.02, { type: 'triangle', vol: v * 0.7, a: 0.004, rel: 2.0, det: 11 }); },
+    bass: (n, t, d, v = 0.06) => { voice(NOTE(n), t, d, { type: 'sawtooth', vol: v, a: 0.005, rel: 0.12, lp: 320 }); },
+    stac: (n, t, v = 0.03) => { [-8, 8].forEach(dt => voice(NOTE(n), t, 0.06, { type: 'sawtooth', vol: v, a: 0.004, rel: 0.12, lp: 1800, det: dt })); },
+    timp: (t, v = 0.2, f = 70) => {
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(f * 1.6, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.12);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+      o.connect(g); g.connect(mus.gain); o.start(t); o.stop(t + 1);
+      const s = ctx.createBufferSource(); s.buffer = noiseBuf; const fl = ctx.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 600; const ng = ctx.createGain();
+      ng.gain.setValueAtTime(v * 0.5, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.15); s.connect(fl); fl.connect(ng); ng.connect(mus.gain); s.start(t); s.stop(t + 0.2);
+    },
+    tick: (t, v = 0.03, f = 7000) => { const s = ctx.createBufferSource(); s.buffer = noiseBuf; const fl = ctx.createBiquadFilter(); fl.type = 'highpass'; fl.frequency.value = f; const g = ctx.createGain(); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04); s.connect(fl); fl.connect(g); g.connect(mus.gain); s.start(t, Math.random()); s.stop(t + 0.06); },
+  };
+  const pick = (a) => a[(Math.random() * a.length) | 0];
+  // svjetovi: polagani, rijetki tonovi preko dronova
+  const WORLD = {
+    // Podzemlje: d-frigijski, zvona iz dubine, violončelo
+    podzemlje: { scale: [62, 63, 65, 67, 69, 70, 72, 74, 75, 77], chords: [[50, 57, 62], [46, 53, 58], [43, 50, 55], [45, 52, 57]], gap: [5, 9],
+      phrase(t) {
+        const c = WORLD.podzemlje.chords[mus.chord++ % 4];
+        if (Math.random() < 0.7) c.forEach(n => I.strings(n, t, 5, 0.012, 600));
+        if (Math.random() < 0.4) I.cello(c[0] - 12, t + 0.5, 4, 0.03);
+        const k = 1 + ((Math.random() * 3) | 0); let x = (Math.random() * 6) | 0;
+        for (let i = 0; i < k; i++) { x = Math.max(0, Math.min(9, x + pick([-2, -1, 1, 2]))); I.bell(WORLD.podzemlje.scale[x], t + 0.6 + i * (0.9 + Math.random() * 0.8), 0.045, Math.random() * 1.2 - 0.6); }
+      } },
+    // Šuma: e-dorski, harfa, flauta, mekane gudače
+    suma: { scale: [64, 66, 67, 69, 71, 73, 74, 76, 78, 79], chords: [[52, 59, 64, 67], [48, 55, 60, 64], [50, 57, 62, 66], [45, 52, 57, 60]], gap: [5, 8],
+      phrase(t) {
+        const c = WORLD.suma.chords[mus.chord++ % 4];
+        if (Math.random() < 0.6) c.slice(0, 3).forEach(n => I.strings(n, t, 6, 0.01, 800));
+        if (Math.random() < 0.65) c.forEach((n, i) => I.harp(n + 12, t + 0.2 + i * 0.42, 0.045, -0.4 + i * 0.25));
+        if (Math.random() < 0.55) { const s = WORLD.suma.scale; let x = 4 + ((Math.random() * 3) | 0); for (let i = 0; i < 3; i++) { I.flute(s[x] + 12, t + 2 + i * 1.6, 1.3, 0.028); x = Math.max(0, Math.min(9, x + pick([-1, -2, 1]))); } }
+      } },
+    // Grad: a-mol, rasštimana glazbena kutija u tročetvrtinskom, klavir iz daljine
+    grad: { scale: [69, 71, 72, 74, 76, 77, 80, 81], gap: [6, 10], motifs: [[81, 76, 72, 76, 74, 71], [76, 77, 76, 74, 72, 71], [72, 76, 81, 80, 76, 74]],
+      phrase(t) {
+        const m = pick(WORLD.grad.motifs), sp = 0.62;
+        if (Math.random() < 0.7) m.forEach((n, i) => I.box(n + 12, t + i * sp * (i % 3 === 0 ? 1.1 : 1), 0.03, -14 - Math.random() * 10));
+        if (Math.random() < 0.5) [45, 52, 57].forEach(n => I.strings(n, t, 6, 0.011, 500));
+        if (Math.random() < 0.35) I.piano(pick([57, 60, 64, 63, 56]), t + 4, 0.035);
+        if (Math.random() < 0.25) I.cello(33, t + 1, 5, 0.03);
+      } },
+  };
+  // bossovi: puls, timpani, ostinato
+  const BOSS = {
+    boss_huk: { bpm: 132, root: 40, pat: [0, 0, 12, 0, 3, 0, 7, 0, 0, 0, 12, 0, 5, 3, 7, 10], stabs: [[52, 55, 59], [48, 52, 55], [50, 53, 57], [47, 50, 54]],
+      step(i, t, L) {
+        const s = i % 16, bar = Math.floor(i / 16);
+        I.bass(this.root + this.pat[s], t, 0.1, 0.055);
+        if (s % 8 === 0) I.timp(t, 0.22, 55);
+        if (L > 0 && (s === 6 || s === 14)) I.timp(t, 0.12, 82);
+        if (L > 1 && s % 2 === 1) I.tick(t, 0.02);
+        if (s === 0) this.stabs[bar % 4].forEach(n => I.strings(n + 12, t, 1.2, 0.016, 2200));
+        if (bar % 4 === 3 && s >= 12) I.timp(t, 0.1 + (s - 12) * 0.03, 90);
+        if (s === 8 && bar % 2 === 1) I.flute(pick([76, 79, 83, 81]) + (L > 1 ? 12 : 0), t, 0.5, 0.03);
+      } },
+    boss_krojac: { bpm: 144, root: 45, pat: [0, 12, 0, 12, 1, 13, 0, 12, 0, 12, 3, 15, 1, 13, 0, 12], box: [93, 88, 84, 88, 86, 83],
+      step(i, t, L) {
+        const s = i % 16, bar = Math.floor(i / 16);
+        I.stac(this.root + this.pat[s] + 12, t, 0.024);
+        if (s % 4 === 0) I.bass(this.root - 12 + (bar % 4 === 3 ? 1 : 0), t, 0.18, 0.06);
+        if (s % 2 === 0) I.tick(t, 0.025, 6000 + (s % 4) * 1500);
+        if (s === 0 || (L > 0 && s === 10)) I.timp(t, 0.2, 60);
+        if (s % 2 === 0 && (bar % 2 === 1 || L > 1)) I.box(this.box[(s / 2) % 6], t, 0.022, -25);
+        if (s === 0 && bar % 4 === 0) [57, 58, 63].forEach(n => I.strings(n, t, 2.5, 0.015, 1600));
+      } },
+  };
+  function schedule() {
+    if (!ok() || !mus) return;
+    const t0 = ctx.currentTime;
+    if (mus.want !== mus.mode) {
+      // pretapanje
+      mus.gain.gain.cancelScheduledValues(t0); mus.gain.gain.setValueAtTime(mus.gain.gain.value, t0); mus.gain.gain.linearRampToValueAtTime(0, t0 + 1.2);
+      mus.mode = mus.want; mus.switchAt = t0 + 1.3; mus.step = 0; mus.ev = mus.switchAt + 0.5; mus.nextT = mus.switchAt;
+      return;
+    }
+    if (!mus.mode || t0 < mus.switchAt) return;
+    if (!mus.up) { mus.up = true; mus.gain.gain.setValueAtTime(0, t0); mus.gain.gain.linearRampToValueAtTime(BOSS[mus.mode] ? 0.9 : 0.75, t0 + 2.5); }
+    const W = WORLD[mus.mode], B = BOSS[mus.mode];
+    if (W && mus.ev < t0 + 0.4) { W.phrase(Math.max(mus.ev, t0 + 0.05)); mus.ev = Math.max(mus.ev, t0) + W.gap[0] + Math.random() * (W.gap[1] - W.gap[0]); }
+    if (B) { const dt = 60 / B.bpm / 4 * (mus.lvl > 1 ? 0.92 : 1); while (mus.nextT < t0 + 0.25) { B.step(mus.step++, Math.max(mus.nextT, t0 + 0.02), mus.lvl); mus.nextT += dt; } }
+  }
   return {
     init,
+    // glazba: 'podzemlje' | 'suma' | 'grad' | 'boss_huk' | 'boss_krojac' | null
+    music(mode) { pendingMode = mode; if (!ctx || !enabled) return; bus(); if (mus.want !== mode) { mus.want = mode; mus.up = false; } },
+    musicLevel(n) { if (mus) mus.lvl = n; },
+    _dbg() { return mus ? [ctx.state, mus.mode, mus.step, +mus.gain.gain.value.toFixed(2)] : null; },
     suspend() { if (ctx && ctx.state === 'running') ctx.suspend(); },
     resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); },
     setTheme(d) { // d = THEMES[x].drone

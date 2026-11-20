@@ -37,6 +37,7 @@ class TitleScene extends Phaser.Scene {
   constructor() { super('Title'); }
   create() {
     if (window.__checkUpdate) window.__checkUpdate();
+    SFX.music('podzemlje');
     this.cameras.main.setBackgroundColor('#05070b');
     this.mode = 'main'; this.sel = 0; this.starting = false;
     // zaštita: klik/tipka koja nas je dovela ovamo (npr. iz pauze) ne smije odmah nešto pokrenuti
@@ -196,6 +197,7 @@ class TitleScene extends Phaser.Scene {
 class EndScene extends Phaser.Scene {
   constructor() { super('End'); }
   create() {
+    SFX.music(null);
     const w = this.scale.width, h = this.scale.height, u = this.u = h / 360;
     this.finished = false;
     this.cameras.main.setBackgroundColor('#05060a');
@@ -324,6 +326,7 @@ class TransitionScene extends Phaser.Scene {
   constructor(key = 'Transition') { super(key); }
   create(data) {
     this.world = data && data.world || 0;
+    SFX.music('suma');
     const w = this.scale.width, h = this.scale.height, u = this.u = h / 360;
     this.finished = false; this.phase = 1;
     this.cameras.main.setBackgroundColor('#03050a');
@@ -487,6 +490,7 @@ class TransitionScene extends Phaser.Scene {
 class SoonScene extends TransitionScene {
   constructor() { super('Soon'); }
   create(data) {
+    SFX.music(null);
     this.world = data && data.world || 0;
     const w = this.scale.width, h = this.scale.height, u = this.u = h / 360;
     this.finished = true; this.phase = 2;
