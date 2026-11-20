@@ -1,7 +1,7 @@
 // Podzemlje — service worker
 // Mreža prvo: pri svakom otvaranju igra uzme najnovije datoteke s GitHub Pagesa.
 // Spremljena kopija služi samo kad nema interneta (ili mreža ne odgovori u 4 s).
-const VERSION = 'podzemlje-v22';
+const VERSION = 'podzemlje-v23';
 const FILES = [
   './', './index.html', './manifest.webmanifest',
   './lib/phaser.min.js',

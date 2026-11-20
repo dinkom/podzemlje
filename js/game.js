@@ -1819,10 +1819,8 @@ class GameScene extends Phaser.Scene {
   update(time, delta) {
     try { this.step(time, delta); }
     catch (e) {
-      console.error(e);
-      try { localStorage.setItem('nocnik-greska', new Date().toISOString() + ' zona ' + (this.levelIndex + 1) + ': ' + (e && e.stack || e).toString().slice(0, 600)); } catch (_) {}
+      if (window.Crash) Crash.report(e, 'zona ' + (this.levelIndex + 1));
       this.errCount = (this.errCount || 0) + 1;
-      if (this.errCount === 1 && Dev.on && this.ui) this.ui.toast('GREŠKA: ' + (e && e.message), 4000);
       if (this.errCount > 300 && !this.errRestart) { this.errRestart = true; this.scene.restart(); }
     }
   }
@@ -2355,8 +2353,13 @@ class GameScene extends Phaser.Scene {
   }
 
   wakeTheSleeper(keyId) {
-    this.huks.filter(h => h.dormant === keyId).forEach(h => this.time.delayedCall(900, () => this.wakeHuk(h)));
-    this.krojaci.filter(k => k.dormant === keyId && !k.alive).forEach(k => this.time.delayedCall(900, () => this.wakeKrojac(k)));
+    try { this.wakeTheSleeper0(keyId); } catch (e) { if (window.Crash) Crash.report(e, 'ključ ' + keyId); }
+  }
+
+  wakeTheSleeper0(keyId) {
+    const safe = (fn, what) => () => { try { fn(); } catch (e) { if (window.Crash) Crash.report(e, what); } };
+    this.huks.filter(h => h.dormant === keyId).forEach(h => this.time.delayedCall(900, safe(() => this.wakeHuk(h), 'wakeHuk')));
+    this.krojaci.filter(k => k.dormant === keyId && !k.alive).forEach(k => this.time.delayedCall(900, safe(() => this.wakeKrojac(k), 'wakeKrojac')));
     if (this.L.darkWall && this.L.darkWall.key === keyId) this.time.delayedCall(700, () => { this.ui.toast(this.L.darkWall.toast || 'Tama se pomaknula…', 2200); this.startWall(this.player.x - 300, 1.6); });
     const lo = this.L.lightsOutKey === keyId;
     if (lo) this.time.delayedCall(500, () => { this.applyLightsOut(false); this.ui.toast('Sve su se svijeće ugasile…', 2200); });

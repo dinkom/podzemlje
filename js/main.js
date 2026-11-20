@@ -559,6 +559,44 @@ window.addEventListener('appinstalled', () => { installEvt = null; refreshTitle(
 
 Dev.checkUrl().then(() => { const t = game.scene.getScene('Title'); if (t && t.sys.isActive()) t.build(); });
 
+// ---- zaštita od zamrzavanja ----
+// Phaser staje zauvijek ako bilo koja greška (u tajmeru, animaciji, crtanju) iskoči iz glavne petlje.
+// Ovdje je hvatamo, igra nastavlja, a poruka se pokaže dolje na ekranu (za slikanje i popravak).
+const Crash = {
+  n: 0,
+  report(e, where = '') {
+    this.n++;
+    const msg = (e && (e.stack || e.message)) || String(e);
+    const loc = (msg.match(/js\/[a-z0-9]+\.js:\d+(:\d+)?/gi) || []).slice(0, 3).join(' < ');
+    const short = (e && e.message || String(e)).slice(0, 140);
+    try { console.error(e); } catch (_) {}
+    try { localStorage.setItem('nocnik-greska', new Date().toISOString() + ' ' + where + ': ' + msg.slice(0, 600)); } catch (_) {}
+    if (this.n > 1 && this.el) { this.el.querySelector('b').textContent = '×' + this.n; return; }
+    try {
+      const el = this.el || document.createElement('div');
+      el.style.cssText = 'position:fixed;left:6px;right:6px;bottom:6px;z-index:9999;background:rgba(40,0,0,.85);color:#ffd0d0;font:12px/1.35 monospace;padding:6px 8px;border-radius:6px;pointer-events:auto;white-space:pre-wrap;word-break:break-all';
+      el.innerHTML = '';
+      el.append('Greška (slikaj ovo za popravak) ', Object.assign(document.createElement('b'), { textContent: '' }), '\n' + where + ' ' + short + '\n' + loc);
+      el.onclick = () => { el.remove(); this.el = null; this.n = 0; };
+      if (!this.el) document.body.appendChild(el);
+      this.el = el;
+    } catch (_) {}
+  },
+};
+window.Crash = Crash;
+window.addEventListener('error', (ev) => Crash.report(ev.error || ev.message, 'window'));
+window.addEventListener('unhandledrejection', (ev) => Crash.report(ev.reason, 'promise'));
+{
+  const step0 = Phaser.Game.prototype.step;
+  Phaser.Game.prototype.step = function (time, delta) {
+    try { step0.call(this, time, delta); }
+    catch (e) {
+      const g = this.scene && this.scene.getScene('Game');
+      Crash.report(e, 'petlja' + (g && g.sys.isActive() ? ' zona ' + (g.levelIndex + 1) : ''));
+    }
+  };
+}
+
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
